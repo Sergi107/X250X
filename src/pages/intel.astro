@@ -1,0 +1,862 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { 
+    Database, FileText, Image as ImageIcon, X, Crosshair,
+    Zap, Target, AlertTriangle, Users, Medal,
+    BarChart3, Skull, Clock, Trophy, Sword, Plane, Truck, ShieldAlert,
+    TrendingUp, Activity, Timer, Ghost, Hash, Radar, Flame, AlertOctagon,
+    MapPin, Calendar, List, Archive
+} from 'lucide-react';
+import { Client, GatewayIntentBits } from 'discord.js';
+
+// --- CONFIGURACIÓN ---
+const MISSION_CHANNEL_ID = '974652533987504179';
+const JSON_STATS_URL = 'https://pmc250.com/datos_misiones_historico.json'; 
+const CACHE_TTL = 5 * 60 * 1000; // 5 Minutos de memoria
+
+// --- SISTEMA DE CACHÉ DE ALTO RENDIMIENTO ---
+const globalAny = globalThis as any;
+globalAny.intelCache = globalAny.intelCache || {
+    data: null,
+    lastFetch: 0,
+    isFetching: false
+};
+
+// --- HELPER DE PROCESAMIENTO ---
+const calculateMissionStats = (missionData: any) => {
+    if (!missionData || !missionData.players) return null;
+    
+    const pl = missionData.players || [];
+    const dur = missionData.duration_sec || 0;
+    const mvp = pl.length > 0 ? pl.reduce((p: any, c: any) => (p.killsTotal > c.killsTotal) ? p : c, pl[0]) : { name: "N/A", killsTotal: 0 };
+    const tk = pl.reduce((a: number, c: any) => a + (c.killsTotal || 0), 0);
+    const td = pl.reduce((a: number, c: any) => a + (c.killed || 0), 0);
+    const sortedPlayers = [...pl].sort((a: any, b: any) => b.killsTotal - a.killsTotal);
+
+    return { 
+        hasData: true, 
+        totalPlayers: pl.length, 
+        totalKills: tk, 
+        totalKia: td, 
+        kdaRatio: td === 0 ? tk.toFixed(2) : (tk / td).toFixed(2), 
+        durationFormatted: `${Math.floor(dur / 3600)}H ${Math.floor((dur % 3600) / 60)}M`,
+        durationMins: Math.floor(dur / 60),
+        mvpName: mvp.name, 
+        mvpKills: mvp.killsTotal, 
+        breakdown: { 
+            inf: pl.reduce((a: number, c: any) => a + (c.killsInfantry || 0), 0), 
+            armor: pl.reduce((a: number, c: any) => a + (c.killsArmor || 0), 0), 
+            air: pl.reduce((a: number, c: any) => a + (c.killsAir || 0), 0), 
+            soft: pl.reduce((a: number, c: any) => a + (c.killsSoft || 0), 0) 
+        },
+        playersDetail: sortedPlayers
+    };
+};
+
+// --- FUNCIÓN MAESTRA DE CARGA DE DATOS ---
+async function fetchIntelData() {
+    console.log("🔄 [INTEL] Actualizando caché de operaciones...");
+    const tStart = Date.now();
+
+    const [jsonResult, discordMessages] = await Promise.all([
+        fetch(JSON_STATS_URL).then(r => r.ok ? r.json() : []).catch(e => { console.error("[INTEL] Error JSON:", e); return []; }),
+        (async () => {
+            const DISCORD_TOKEN = import.meta.env.DISCORD_TOKEN?.trim();
+            if (!DISCORD_TOKEN) return [];
+            try {
+                const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent] });
+                await client.login(DISCORD_TOKEN);
+                const channel = await client.channels.fetch(MISSION_CHANNEL_ID).catch(() => null);
+                let msgs: any[] | PromiseLike<any[]> = [];
+                if (channel && channel.isTextBased()) {
+                    const fetched = await channel.messages.fetch({ limit: 15 });
+                    msgs = Array.from(fetched.values());
+                }
+                await client.destroy();
+                return msgs;
+            } catch (e) {
+                console.error("[INTEL] Error Discord:", e);
+                return [];
+            }
+        })()
+    ]);
+
+    const serverJsonData = jsonResult || [];
+    const rawDiscordMsgs = discordMessages || [];
+
+    // --- ESTADÍSTICAS GLOBALES ---
+    const flavorTexts = {
+        killer: ["El departamento de quejas está cerrado.", "No es fuego de supresión, es puntería.", "Su cañón nunca llega a enfriarse.", "El psicólogo de la unidad ha tirado la toalla.", "Si corre, muere. Si no corre, también."],
+        active: ["Vive en la base. Literalmente.", "Tiene más horas de servicio que el servidor.", "¿Tienes vida social? Él tampoco.", "Su teclado ya no tiene letras.", "El primero en entrar, el último en salir."],
+        armor: ["Su pasatiempo es el reciclaje de metal.", "Abrelatas profesional.", "Odia el blindaje reactivo.", "Desayuna tornillos y mea aceite.", "Suena a metal retorcido por la mañana."],
+        air: ["Las aerolíneas le tienen miedo.", "Zona de exclusión aérea humana.", "Los pájaros le piden permiso para volar.", "Mosca que vuela, mosca que cae.", "Ha convertido el cielo en un infierno."],
+        time: ["Probablemente necesite un cambio de rodillas.", "Inventó la mili.", "Sus botas tienen más historia que tú.", "Recuerda cuando Arma 3 estaba en alpha.", "Parte del mobiliario de la base."],
+        kia: ["El seguro de vida ya no le cubre.", "Imán de balas certificado.", "Conoce a San Pedro por su nombre de pila.", "Respawn profesional.", "Su especialidad es inspeccionar el suelo."],
+        m_kills: ["Genocidio autorizado.", "Sobredosis de plomo.", "El día de la purga.", "Munición agotada en toda la base.", "Limpieza profunda y agresiva."],
+        m_armor: ["Desguace masivo.", "Fiesta de la chatarra.", "Lluvia de Javelins.", "Pesadilla logística para el enemigo.", "Atasco de tráfico eliminado."],
+        m_air: ["Cielos despejados.", "No fly zone activada.", "Lluvia de aluminio.", "Tiro al plato extremo.", "Aterrizajes forzosos por doquier."],
+        m_kia: ["Desastre total.", "Necesitamos más bolsas para cadáveres.", "El mando está llorando.", "Carnicería aliada.", "Lecciones aprendidas (a golpes)."],
+        m_time: ["La historia interminable.", "Traed sacos de dormir.", "Operación Eterna.", "Se hizo de día... dos veces.", "Café intravenoso para todos."]
+    };
+
+    const getRandomFlavor = (type: any) => flavorTexts[type as keyof typeof flavorTexts][Math.floor(Math.random() * flavorTexts[type as keyof typeof flavorTexts].length)];
+    const defaultLeader = { name: "N/A", val: 0, label: "", flavor: "", stats: { missions: 0, kills: 0, kia: 0, inf: 0, soft: 0, armor: 0, air: 0, time: 0 } };
+    const defaultMissionRec = { title: "N/A", val: 0, label: "", flavor: "", island: "Sahrani", allStats: { players: 0, kills: 0, armor: 0, air: 0, kia: 0, time: 0 } };
+
+    let globalStats = {
+        totalMissions: serverJsonData.length,
+        totalKills: 0, totalKia: 0, totalPlaytime: 0,
+        breakdown: { inf: 0, armor: 0, air: 0, soft: 0 },
+        topKiller: { ...defaultLeader, label: "Operador Más Letal", flavor: getRandomFlavor('killer') },
+        mostActive: { ...defaultLeader, label: "Mayor Actividad", flavor: getRandomFlavor('active') },
+        tankHunter: { ...defaultLeader, label: "Cazador de Blindados", flavor: getRandomFlavor('armor') },
+        aaSpecialist: { ...defaultLeader, label: "As del Aire", flavor: getRandomFlavor('air') },
+        mostPlaytime: { ...defaultLeader, label: "Veterano", flavor: getRandomFlavor('time') },
+        mostKia: { ...defaultLeader, label: "Sacrificio Final", flavor: getRandomFlavor('kia') },
+        missionMostKills: { ...defaultMissionRec, label: "RÉCORD DE BAJAS", flavor: getRandomFlavor('m_kills') },
+        missionMostArmor: { ...defaultMissionRec, label: "DESTRUCCIÓN BLINDADA", flavor: getRandomFlavor('m_armor') },
+        missionMostAir: { ...defaultMissionRec, label: "SUPERIORIDAD AÉREA", flavor: getRandomFlavor('m_air') },
+        missionMostKia: { ...defaultMissionRec, label: "DÍA MÁS SANGRIENTO", flavor: getRandomFlavor('m_kia') },
+        missionLongest: { ...defaultMissionRec, label: "MAYOR DURACIÓN", flavor: getRandomFlavor('m_time') }
+    };
+
+    const leaderboard: Record<string, any> = {};
+
+    if (serverJsonData.length > 0) {
+        serverJsonData.forEach((mission: any) => {
+            const duration = mission.duration_sec || 0;
+            globalStats.totalPlaytime += duration;
+            if (mission.players && Array.isArray(mission.players)) {
+                mission.players.forEach((p: any) => {
+                    globalStats.totalKills += (p.killsTotal || 0);
+                    globalStats.totalKia += (p.killed || 0);
+                    globalStats.breakdown.inf += (p.killsInfantry || 0);
+                    globalStats.breakdown.armor += (p.killsArmor || 0);
+                    globalStats.breakdown.air += (p.killsAir || 0);
+                    globalStats.breakdown.soft += (p.killsSoft || 0);
+                    if (!leaderboard[p.name]) leaderboard[p.name] = { name: p.name, kills: 0, armor: 0, air: 0, deaths: 0, missions: 0, time: 0, inf: 0, soft: 0 };
+                    const player = leaderboard[p.name];
+                    player.kills += (p.killsTotal || 0); player.armor += (p.killsArmor || 0); player.air += (p.killsAir || 0);
+                    player.inf += (p.killsInfantry || 0); player.soft += (p.killsSoft || 0); player.deaths += (p.killed || 0);
+                    player.missions += 1; player.time += duration;
+                });
+            }
+        });
+
+        const players = Object.values(leaderboard);
+        if (players.length > 0) {
+            const setLeader = (key: string, metricKey: string) => {
+                const leader = [...players].sort((a:any, b:any) => b[metricKey as keyof typeof a] - a[metricKey as keyof typeof a])[0];
+                if (leader) (globalStats as any)[key] = { ...(globalStats as any)[key], name: leader.name, val: metricKey === 'time' ? Math.floor(leader.time / 3600) : leader[metricKey], stats: { missions: leader.missions, kills: leader.kills, kia: leader.deaths, inf: leader.inf, soft: leader.soft, armor: leader.armor, air: leader.air, time: Math.floor(leader.time / 3600) } };
+            };
+            setLeader('topKiller', 'kills'); setLeader('mostActive', 'missions'); setLeader('tankHunter', 'armor');
+            setLeader('aaSpecialist', 'air'); setLeader('mostPlaytime', 'time'); setLeader('mostKia', 'deaths');
+        }
+        const getMissionMetric = (m: any, type: string) => (!m.players) ? 0 : m.players.reduce((acc: number, p: any) => acc + (p[type] || 0), 0);
+        const getFullMissionStats = (m: any) => { if (!m || !m.players) return defaultMissionRec.allStats; return { players: m.players.length, kills: m.players.reduce((a: number, b: any) => a + (b.killsTotal || 0), 0), armor: m.players.reduce((a: number, b: any) => a + (b.killsArmor || 0), 0), air: m.players.reduce((a: number, b: any) => a + (b.killsAir || 0), 0), kia: m.players.reduce((a: number, b: any) => a + (b.killed || 0), 0), time: Math.floor((m.duration_sec || 0) / 60) }; };
+        const findMission = (compareFn: (a:any, b:any) => number) => [...serverJsonData].sort(compareFn)[0];
+        const setMissionStats = (targetKey: string, sourceMission: any, value: number) => { if(sourceMission) { (globalStats as any)[targetKey] = { ...(globalStats as any)[targetKey], title: sourceMission.mission, val: value, island: sourceMission.island || 'Desconocida', allStats: getFullMissionStats(sourceMission) }; } }
+        
+        setMissionStats('missionMostKills', findMission((a, b) => getMissionMetric(b, 'killsTotal') - getMissionMetric(a, 'killsTotal')), getMissionMetric(findMission((a, b) => getMissionMetric(b, 'killsTotal') - getMissionMetric(a, 'killsTotal')), 'killsTotal'));
+        setMissionStats('missionMostArmor', findMission((a, b) => getMissionMetric(b, 'killsArmor') - getMissionMetric(a, 'killsArmor')), getMissionMetric(findMission((a, b) => getMissionMetric(b, 'killsArmor') - getMissionMetric(a, 'killsArmor')), 'killsArmor'));
+        setMissionStats('missionMostAir', findMission((a, b) => getMissionMetric(b, 'killsAir') - getMissionMetric(a, 'killsAir')), getMissionMetric(findMission((a, b) => getMissionMetric(b, 'killsAir') - getMissionMetric(a, 'killsAir')), 'killsAir'));
+        setMissionStats('missionMostKia', findMission((a, b) => getMissionMetric(b, 'killed') - getMissionMetric(a, 'killed')), getMissionMetric(findMission((a, b) => getMissionMetric(b, 'killed') - getMissionMetric(a, 'killed')), 'killed'));
+        const mTime = findMission((a, b) => (b.duration_sec || 0) - (a.duration_sec || 0)); setMissionStats('missionLongest', mTime, Math.floor((mTime?.duration_sec || 0)/60));
+    }
+
+    // --- PROCESAMIENTO MISIONES DISCORD (NUEVO MÉTODO EXACTO) ---
+    const missionsList = rawDiscordMsgs
+        .filter((msg: any) => msg.content.toLowerCase().includes('misión') || msg.content.toLowerCase().includes('operación'))
+        .map((msg: any) => {
+            const rawContent = msg.content;
+            
+            // Función auxiliar para extraer texto entre dos marcas
+            // Busca la 'marcaInicio', avanza esa longitud, y corta hasta 'marcaFin'.
+            const extractSection = (startMarker: string, endMarker: string) => {
+                const lowerContent = rawContent.toLowerCase();
+                const sMarkerLower = startMarker.toLowerCase();
+                const eMarkerLower = endMarker.toLowerCase();
+
+                const startIdx = lowerContent.indexOf(sMarkerLower);
+                if (startIdx === -1) return null;
+
+                const actualStart = startIdx + startMarker.length;
+                const endIdx = lowerContent.indexOf(eMarkerLower, actualStart);
+
+                if (endIdx === -1) {
+                    // Si no encuentra el final, cogemos hasta el final del texto como fallback
+                    return rawContent.substring(actualStart).trim(); 
+                }
+
+                return rawContent.substring(actualStart, endIdx).trim();
+            };
+
+            // Función de limpieza de markdown
+            const cleanText = (text: string | null) => {
+                if (!text) return "Desconocido";
+                return text
+                    .replace(/\*\*?|_|__/g, '') // Quita negritas
+                    .replace(/^[:\s\-\|\|\.]+/, '') // Quita dos puntos iniciales
+                    .replace(/<@!?\d+>/g, '') // Quita menciones
+                    .trim();
+            };
+
+            // 1. NOMBRE: Empieza tras "Nombre de la mision:" y acaba en la primera coma ","
+            const rawTitle = extractSection("Nombre de la mision", ",");
+            const title = cleanText(rawTitle) || "Operación Especial";
+
+            // 2. FACCION: Empieza tras "Faccion:" y acaba en "Ubicacion"
+            const rawFaction = extractSection("Faccion", "Ubicacion");
+            const faction = cleanText(rawFaction) || "PMC";
+
+            // 3. UBICACION: Empieza tras "Ubicacion:" y acaba en "Fecha"
+            const rawLocation = extractSection("Ubicacion", "Fecha");
+            const location = cleanText(rawLocation) || "Sahrani";
+
+            // 4. FECHA: Empieza tras "Fecha:" y acaba en "Contexto"
+            const rawDate = extractSection("Fecha", "Contexto");
+            const date = cleanText(rawDate) || "Pendiente";
+
+            // 5. CONTEXTO: Empieza tras "Contexto:" y acaba en la frase larga de cierre
+            // Usamos "fecha y hora de la misión" como marcador de corte más seguro y corto
+            const rawContext = extractSection("Contexto", "fecha y hora de la misión actual para participar en la misión");
+            const context = cleanText(rawContext);
+
+            // Imágenes y Stats (Lógica existente)
+            let imageUrl = msg.attachments.first()?.url || (msg.embeds.length > 0 ? msg.embeds[0].image?.url : null);
+            if (!imageUrl) { const m = rawContent.match(/https?:\/\/\S+\.(?:png|jpg|jpeg|webp|gif)/i); if (m) imageUrl = m[0]; }
+            
+            let mLog = null;
+            if (serverJsonData.length > 0) {
+                const norm = (s: string) => s.toLowerCase().replace(/[áéíóú]/g, (c) => 'aeiou'['áéíóú'.indexOf(c)]);
+                mLog = serverJsonData.find((m: any) => norm(m.mission).includes(norm(title)) || norm(title).includes(norm(m.mission)));
+            }
+            const stats = mLog ? calculateMissionStats(mLog) : { hasData: false, totalPlayers: 0, totalKills: 0, totalKia: 0, kdaRatio: "---", durationFormatted: "--H --M", mvpName: "N/A", mvpKills: 0, breakdown: { inf: 0, armor: 0, air: 0, soft: 0 }, playersDetail: [] };
+            
+            return { 
+                id: msg.id, 
+                title, 
+                faction, 
+                location, 
+                date, 
+                context: context && context.length > 10 ? context : "Sin información de inteligencia disponible.", 
+                image: imageUrl, 
+                computedStats: stats 
+            };
+        });
+
+    // --- PROCESAMIENTO ARCHIVO ---
+    const archiveMissions = [...serverJsonData].reverse().map((mission: any, index: number) => ({
+        id: `arch_${index}`,
+        title: mission.mission,
+        island: mission.island || "Desconocida",
+        date: mission.date || "N/A",
+        stats: calculateMissionStats(mission)
+    }));
+
+    console.log(`✅ [INTEL] Datos actualizados en ${Date.now() - tStart}ms`);
+    return { globalStats, missionsList, archiveMissions, fetchError: false };
+}
+
+// --- GESTOR DE CACHÉ ---
+const now = Date.now();
+let intelData;
+
+if (globalAny.intelCache.data && (now - globalAny.intelCache.lastFetch < CACHE_TTL)) {
+    intelData = globalAny.intelCache.data;
+} else {
+    intelData = await fetchIntelData();
+    globalAny.intelCache = { data: intelData, lastFetch: now, isFetching: false };
+}
+
+const { globalStats, missionsList, archiveMissions, fetchError } = intelData;
+---
+
+<Layout title="Intel - PMC250">
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+        <div class="absolute inset-0 bg-radial-tactical"></div>
+        <div class="absolute inset-0 tactical-grid opacity-20"></div>
+    </div>
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+        <img src="/multimedia/013.png" alt="" class="absolute inset-0 w-full h-full object-cover opacity-20 transform scale-110" />
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+    </div>
+    
+    <main class="relative z-10 pt-40 pb-40 container mx-auto px-6 max-w-7xl">
+        <header class="mb-12 border-l- border-pmc-accent pl-8">
+            <div class="flex items-left gap-3 text-pmc-accent font-mono text-[10px] tracking-[0.4em] uppercase mb-4">
+                <Database size={14} /> Global Tactical Network // LIVE_SYNC
+            </div>
+            <h1 class="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-none">
+                INTEL <span class="text-pmc-accent text-outline">.</span>
+            </h1>
+        </header>
+
+        {/* NAVEGACIÓN DE PESTAÑAS */}
+        <div class="flex flex-wrap gap-1 mb-16 border-b border-white/10">
+            <button id="tab-missions" class="tab-btn active px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent transition-all flex items-center gap-3 hover:text-white hover:bg-white/5" onclick="switchTab('missions')">
+                <Target size={18} /> MISIONES OFICIALES
+            </button>
+            <button id="tab-archive" class="tab-btn px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent transition-all flex items-center gap-3 hover:text-white hover:bg-white/5" onclick="switchTab('archive')">
+                <Archive size={18} /> ARCHIVO OPERACIONES
+            </button>
+            <button id="tab-global" class="tab-btn px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent transition-all flex items-center gap-3 hover:text-white hover:bg-white/5" onclick="switchTab('global')">
+                <BarChart3 size={18} /> ESTADÍSTICAS GLOBALES
+            </button>
+        </div>
+
+        {fetchError && (
+            <div class="mb-8 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono uppercase">
+                <AlertTriangle size={16} className="inline mr-2" /> Error de conexión: No se pudo cargar el archivo JSON de estadísticas.
+            </div>
+        )}
+
+        {/* --- VISTA 1: MISIONES OFICIALES (DISCORD) --- */}
+        <div id="missions-view" class="view-section">
+            <div class="grid grid-cols-1 gap-16">
+                {missionsList.map((mission: any) => (
+                    <div class="group relative bg-white/5 border border-white/10 hover:border-pmc-accent/30 transition-all duration-700 min-h-112.5 flex flex-col lg:flex-row shadow-2xl">
+                        <div class="lg:w-2/5 relative min-h-75 lg:min-h-full bg-pmc-900 overflow-hidden">
+                            {mission.image ? (
+                                <img src={mission.image} alt={mission.title} class="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000" />
+                            ) : ( <div class="absolute inset-0 flex flex-col items-center justify-center text-white/5"><ImageIcon size={64} /></div> )}
+                            <div class="absolute inset-0 bg-linear-to-t from-pmc-950 via-transparent to-transparent opacity-90"></div>
+                            <div class="absolute bottom-8 left-8">
+                                <div class="bg-pmc-accent text-pmc-950 text-[10px] font-black uppercase px-4 py-1.5 tracking-tighter w-fit transform -skew-x-12 mb-2">AOR: {mission.location}</div>
+                            </div>
+                        </div>
+
+                        <div class="lg:w-3/5 p-8 md:p-12 flex flex-col">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-6 gap-4">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-pmc-accent font-mono text-[10px] uppercase tracking-[0.5em] font-bold">{mission.faction}</span>
+                                    <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight group-hover:text-pmc-accent transition-colors">{mission.title}</h2>
+                                </div>
+                                <div class="text-left sm:text-right shrink-0">
+                                    <p class="text-white/20 font-mono text-[9px] uppercase tracking-[0.5em] mb-1">Deployment</p>
+                                    <p class="text-white font-mono text-sm tracking-tighter">{mission.date}</p>
+                                </div>
+                            </div>
+                            <div class="grow mb-8 overflow-hidden">
+                                <div class="flex items-start gap-5 h-full">
+                                    <div class="mt-1.5 p-2.5 bg-pmc-accent/5 rounded border border-pmc-accent/20 text-pmc-accent shrink-0"><FileText size={20} /></div>
+                                    <div class="space-y-3">
+                                        <p class="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em]">Briefing de Inteligencia</p>
+                                        <div class="text-gray-400 leading-relaxed text-sm md:text-base italic font-medium line-clamp-6 overflow-y-auto max-h-45 pr-2 custom-scrollbar">{mission.context}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-auto pt-8 border-t border-white/5 flex justify-end">
+                                <button onclick={`showModalAnim('dialog_${mission.id}')`} class="bg-pmc-accent hover:bg-white text-pmc-950 px-8 py-4 font-black uppercase text-xs tracking-[0.2em] transition-all hover:scale-105 active:scale-95 flex items-center gap-3 shadow-[0_0_20px_rgba(251,146,60,0.2)]">
+                                    <Database size={16} /> ABRIR EXPEDIENTE
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* MODAL MISION OFICIAL INDIVIDUAL */}
+                        <dialog id={`dialog_${mission.id}`} class="stats-modal backdrop:backdrop-blur-xl bg-transparent p-0 w-full h-full max-w-full max-h-full m-0" onclick="if(event.target === this) closeModalAnim(this.id)">
+                            <div class="w-full h-full flex items-center justify-center p-4">
+                                <div class="w-[90vw] max-w-5xl bg-pmc-950 border border-white/10 shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+                                    <div class="bg-pmc-accent p-5 flex justify-between items-center shrink-0">
+                                        <div class="flex items-center gap-3 text-pmc-950">
+                                            <div class="p-1.5 bg-pmc-950 text-pmc-accent rounded-sm"><Crosshair size={20} /></div>
+                                            <div class="flex flex-col"><span class="font-black uppercase tracking-tighter text-lg leading-none">Expediente de misión</span><span class="text-[9px] font-bold opacity-70 tracking-[0.3em]">ESTADÍSTICAS DE MISIÓN: {mission.title}</span></div>
+                                        </div>
+                                        <button onclick={`closeModalAnim('dialog_${mission.id}')`} class="text-pmc-950 hover:rotate-90 transition-all duration-300"><X size={28} /></button>
+                                    </div>
+                                    <div class="p-8 md:p-12 overflow-y-auto custom-scrollbar">
+                                        {mission.computedStats && mission.computedStats.hasData ? (
+                                            <>
+                                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                                    <div class="bg-white/5 border border-white/10 p-4 flex items-center gap-4">
+                                                        <div class="p-3 bg-white/5 rounded-full"><Clock size={24} className="text-pmc-accent"/></div>
+                                                        <div><p class="text-[9px] text-white/40 uppercase tracking-widest">Duración</p><p class="text-2xl font-black text-white">{mission.computedStats.durationFormatted}</p></div>
+                                                    </div>
+                                                    <div class="bg-linear-to-r from-yellow-500/10 to-transparent border border-yellow-500/20 p-4 flex items-center gap-4 col-span-2">
+                                                        <div class="p-3 bg-yellow-500/10 rounded-full"><Trophy size={24} className="text-yellow-500"/></div>
+                                                        <div><p class="text-[9px] text-yellow-500/80 uppercase tracking-widest font-bold">MVP de la Misión</p><div class="flex items-baseline gap-2"><p class="text-2xl font-black text-white uppercase">{mission.computedStats.mvpName}</p><p class="text-sm font-mono text-white/50">({mission.computedStats.mvpKills} bajas)</p></div></div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <h4 class="text-white font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={14}/>Informe de operación </h4>
+                                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                                    <div class="bg-white/5 p-4 text-center border-t-2 border-pmc-accent"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Operadores desplegados</p><p class="text-3xl font-black text-white">{mission.computedStats.totalPlayers}</p></div>
+                                                    <div class="bg-white/5 p-4 text-center border-t-2 border-green-500"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Ratio K/D</p><p class="text-3xl font-black text-green-500">{mission.computedStats.kdaRatio}</p></div>
+                                                    <div class="bg-white/5 p-4 text-center border-t-2 border-white"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Hostiles abatidos</p><p class="text-3xl font-black text-white">{mission.computedStats.totalKills}</p></div>
+                                                    <div class="bg-red-500/10 p-4 text-center border-t-2 border-red-500"><p class="text-[9px] text-red-500 uppercase tracking-widest mb-1 font-bold">KIAs Aliados</p><p class="text-3xl font-black text-red-500">{mission.computedStats.totalKia}</p></div>
+                                                </div>
+                                                <div class="mb-8">
+                                                    <h4 class="text-white font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={14}/> Desglose de Amenazas Neutralizadas</h4>
+                                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Sword size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none">{mission.computedStats.breakdown.inf}</span><span class="text-[9px] text-white/30 uppercase">Infantería</span></div></div>
+                                                        <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Truck size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none">{mission.computedStats.breakdown.soft}</span><span class="text-[9px] text-white/30 uppercase">Ligeros</span></div></div>
+                                                        <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><ShieldAlert size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none">{mission.computedStats.breakdown.armor}</span><span class="text-[9px] text-white/30 uppercase">Blindados</span></div></div>
+                                                        <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Plane size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none">{mission.computedStats.breakdown.air}</span><span class="text-[9px] text-white/30 uppercase">Aéreos</span></div></div>
+                                                    </div>
+                                                </div>
+                                                <div class="border-t border-white/10 pt-8">
+                                                    <h4 class="text-white font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2"><Users size={14}/>Estadísticas de operadores</h4>
+                                                    <div class="grid grid-cols-1 gap-2 max-h-75 overflow-y-auto custom-scrollbar pr-2">
+                                                        <div class="flex items-center justify-between text-[9px] text-white/30 uppercase tracking-widest px-4 pb-2">
+                                                            <span>Operador</span>
+                                                            <div class="flex gap-4 sm:gap-8 text-right"><span class="w-8">Inf</span><span class="w-8">Arm</span><span class="w-8">Air</span><span class="w-8 font-bold text-white/50">Total</span><span class="w-8">KIA</span></div>
+                                                        </div>
+                                                        {mission.computedStats.playersDetail.map((p: any, index: number) => (
+                                                            <div class="flex items-center justify-between bg-white/5 p-3 rounded-sm border-l-2 border-transparent hover:border-pmc-accent hover:bg-white/10 transition-all group">
+                                                                <div class="flex items-center gap-3"><span class="text-white/20 font-mono text-xs w-4">#${index + 1}</span><span class="font-bold text-white text-sm group-hover:text-pmc-accent transition-colors">{p.name}</span></div>
+                                                                <div class="flex gap-4 sm:gap-8 text-right font-mono text-xs text-white/60">
+                                                                    <span class="w-8 flex items-center justify-end gap-1"><Sword size={10} className="md:hidden"/>{p.killsInfantry}</span>
+                                                                    <span class="w-8 flex items-center justify-end gap-1"><ShieldAlert size={10} className="md:hidden"/>{p.killsArmor}</span>
+                                                                    <span class="w-8 flex items-center justify-end gap-1"><Plane size={10} className="md:hidden"/>{p.killsAir}</span>
+                                                                    <span class="w-8 font-bold text-pmc-accent">{p.killsTotal}</span>
+                                                                    <span class={`w-8 font-bold ${p.killed > 0 ? 'text-red-500' : 'text-green-500/50'}`}>{p.killed > 0 ? "KIA" : "OK"}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div class="flex flex-col items-center justify-center py-12 text-center"><Database size={48} className="text-pmc-alert mb-4" /><h3 class="text-pmc-alert font-black uppercase text-xl mb-2">Información no disponible</h3><p class="text-white/40 text-sm max-w-md">No se han encontrado registros para esta operación.</p>><p class="text-white/40 text-sm max-w-md">Esto puede deberse a que esta operación todavia no se ha realizado, si crees que es un error, contacta con el equipo de administración de X250X.</p></div>
+                                        )}
+                                    </div>
+                                    <div class="bg-white/5 p-3 flex justify-between items-center px-8 shrink-0"><span class="text-[8px] font-mono text-white/20 uppercase tracking-[1em]">S-2 CLASSIFIED DOCUMENT</span></div>
+                                </div>
+                            </div>
+                        </dialog>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* --- VISTA 2: ARCHIVO COMPLETO (NO OFICIALES) --- */}
+        <div id="archive-view" class="view-section hidden">
+            <div class="mb-8 p-6 bg-pmc-accent/5 border border-pmc-accent/20 flex items-center gap-4">
+                <AlertTriangle className="text-pmc-accent" size={24} />
+                <div>
+                    <h3 class="text-pmc-accent font-black uppercase tracking-widest text-sm">Registro de Operaciones No Oficiales</h3>
+                    <p class="text-white/60 text-xs">Este archivo contiene el volcado crudo de todas las operaciones registradas por el servidor, incluyendo entrenamientos y operaciones clasificadas.</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-white/10 text-white/30 text-[10px] uppercase tracking-widest font-mono">
+                            <th class="p-4">Operación</th>
+                            <th class="p-4">Isla</th>
+                            <th class="p-4 text-center">Duración</th>
+                            <th class="p-4 text-center">Jugadores</th>
+                            <th class="p-4 text-right">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5 text-sm font-mono text-white/70">
+                        {archiveMissions.map((m: any) => (
+                            <tr class="hover:bg-white/5 transition-colors group">
+                                <td class="p-4 font-bold text-white group-hover:text-pmc-accent transition-colors">{m.title}</td>
+                                <td class="p-4">{m.island}</td>
+                                <td class="p-4 text-center">{m.stats?.durationFormatted || "--"}</td>
+                                <td class="p-4 text-center">{m.stats?.totalPlayers || 0}</td>
+                                <td class="p-4 text-right">
+                                    {m.stats ? (
+                                        <button onclick={`openDynamicModal('${JSON.stringify(m.stats).replace(/'/g, "&#39;")}', '${m.title.replace(/'/g, "&#39;")}')`} class="text-pmc-accent hover:text-white text-[10px] uppercase font-bold tracking-widest border border-pmc-accent/30 px-3 py-1 hover:bg-pmc-accent/20 transition-all">
+                                            VER DATOS
+                                        </button>
+                                    ) : (
+                                        <span class="text-white/20 text-[10px] uppercase">Sin Datos</span>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* --- VISTA 3: ESTADÍSTICAS GLOBALES --- */}
+        <div id="global-view" class="view-section hidden">
+            <h2 class="text-4xl md:text-5xl font-black text-white text-center mb-16 uppercase tracking-tighter">
+                <span class="text-pmc-accent">ESTADÍSTICAS GLOBALES</span> DE PMC250
+            </h2>
+
+            {/* 1. SECCIÓN CUADRO DE HONOR (ZIG ZAG ALTERNO) */}
+            <h3 class="text-white font-black text-lg uppercase tracking-widest mb-8 flex items-center gap-3">
+                <Medal size={20} className="text-pmc-accent"/> Cuadro de Honor
+            </h3>
+
+            <div class="flex flex-col gap-10 mb-20">
+                {/* 1. MVP KILLER */}
+                <div class="relative bg-pmc-900/80 border border-white/10 flex flex-col xl:flex-row shadow-xl overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+                    <div class="p-8 xl:w-5/12 flex flex-col justify-center border-b xl:border-b-0 xl:border-r border-white/5 bg-linear-to-br from-yellow-500/5 to-transparent">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-3 bg-yellow-500/10 text-yellow-500 rounded"><Trophy size={28} /></div>
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-yellow-500">{globalStats.topKiller.label}</span>
+                        </div>
+                        <h3 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-4 wrap-break-word w-full">{globalStats.topKiller.name}</h3>
+                        <p class="text-white/40 italic font-mono text-sm border-l-2 border-white/20 pl-3">"{globalStats.topKiller.flavor}"</p>
+                    </div>
+                    <div class="p-8 xl:w-7/12 grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 items-center content-center">
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.topKiller.stats.missions}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Misiones</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-black text-yellow-500 font-mono">{globalStats.topKiller.stats.kills}</span><span class="text-[9px] text-yellow-500/50 uppercase tracking-widest font-bold">Total Kills</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.topKiller.stats.inf}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Infantería</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.topKiller.stats.soft}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Ligeros</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.topKiller.stats.armor}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Blindados</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.topKiller.stats.air}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Aéreos</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{(globalStats.topKiller.stats.kills / (globalStats.topKiller.stats.kia || 1)).toFixed(2)}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">K/D Ratio</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-red-500 font-mono">{globalStats.topKiller.stats.kia}</span><span class="text-[9px] text-red-500/50 uppercase tracking-widest">Veces KIA</span></div>
+                    </div>
+                </div>
+
+                {/* 2. MOST ACTIVE */}
+                <div class="relative bg-pmc-900/80 border border-white/10 flex flex-col xl:flex-row-reverse shadow-xl overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-1 h-full bg-blue-500 hidden xl:block"></div>
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500 xl:hidden"></div>
+                    <div class="p-8 xl:w-5/12 flex flex-col justify-center border-b xl:border-b-0 xl:border-l border-white/5 bg-linear-to-bl from-blue-500/5 to-transparent text-left xl:text-right">
+                        <div class="flex items-center xl:justify-end gap-3 mb-4">
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-blue-500">{globalStats.mostActive.label}</span>
+                            <div class="p-3 bg-blue-500/10 text-blue-500 rounded"><Activity size={28} /></div>
+                        </div>
+                        <h3 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-4 wrap-break-word w-full">{globalStats.mostActive.name}</h3>
+                        <p class="text-white/40 italic font-mono text-sm border-l-2 xl:border-l-0 xl:border-r-2 border-white/20 pl-3 xl:pl-0 xl:pr-3">"{globalStats.mostActive.flavor}"</p>
+                    </div>
+                    <div class="p-8 xl:w-7/12 grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 items-center content-center">
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-black text-blue-500 font-mono">{globalStats.mostActive.stats.missions}</span><span class="text-[9px] text-blue-500/50 uppercase tracking-widest font-bold">Misiones</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.kills}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Total Kills</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.inf}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Infantería</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.soft}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Ligeros</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.armor}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Blindados</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.air}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Aéreos</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostActive.stats.time}h</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Tiempo</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-red-500 font-mono">{globalStats.mostActive.stats.kia}</span><span class="text-[9px] text-red-500/50 uppercase tracking-widest">Veces KIA</span></div>
+                    </div>
+                </div>
+
+                 {/* 3. TANK HUNTER */}
+                 <div class="relative bg-pmc-900/80 border border-white/10 flex flex-col xl:flex-row shadow-xl overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
+                    <div class="p-8 xl:w-5/12 flex flex-col justify-center border-b xl:border-b-0 xl:border-r border-white/5 bg-linear-to-br from-orange-500/5 to-transparent">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-3 bg-orange-500/10 text-orange-500 rounded"><ShieldAlert size={28} /></div>
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">{globalStats.tankHunter.label}</span>
+                        </div>
+                        <h3 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-4 wrap-break-word w-full">{globalStats.tankHunter.name}</h3>
+                        <p class="text-white/40 italic font-mono text-sm border-l-2 border-white/20 pl-3">"{globalStats.tankHunter.flavor}"</p>
+                    </div>
+                    <div class="p-8 xl:w-7/12 grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 items-center content-center">
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.missions}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Misiones</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.kills}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Total Kills</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.inf}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Infantería</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.soft}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Ligeros</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-black text-orange-500 font-mono">{globalStats.tankHunter.stats.armor}</span><span class="text-[9px] text-orange-500/50 uppercase tracking-widest font-bold">Blindados</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.air}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Aéreos</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-white font-mono">{globalStats.tankHunter.stats.time}h</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Tiempo</span></div>
+                        <div class="text-center md:text-left"><span class="block text-2xl font-bold text-red-500 font-mono">{globalStats.tankHunter.stats.kia}</span><span class="text-[9px] text-red-500/50 uppercase tracking-widest">Veces KIA</span></div>
+                    </div>
+                </div>
+
+                {/* 4. AA SPECIALIST */}
+                <div class="relative bg-pmc-900/80 border border-white/10 flex flex-col xl:flex-row-reverse shadow-xl overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-1 h-full bg-purple-500 hidden xl:block"></div>
+                    <div class="absolute top-0 left-0 w-1 h-full bg-purple-500 xl:hidden"></div>
+                    <div class="p-8 xl:w-5/12 flex flex-col justify-center border-b xl:border-b-0 xl:border-l border-white/5 bg-linear-to-bl from-purple-500/5 to-transparent text-left xl:text-right">
+                        <div class="flex items-center xl:justify-end gap-3 mb-4">
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-purple-500">{globalStats.aaSpecialist.label}</span>
+                            <div class="p-3 bg-purple-500/10 text-purple-500 rounded"><Plane size={28} /></div>
+                        </div>
+                        <h3 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-4 wrap-break-word w-full">{globalStats.aaSpecialist.name}</h3>
+                        <p class="text-white/40 italic font-mono text-sm border-l-2 xl:border-l-0 xl:border-r-2 border-white/20 pl-3 xl:pl-0 xl:pr-3">"{globalStats.aaSpecialist.flavor}"</p>
+                    </div>
+                    <div class="p-8 xl:w-7/12 grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 items-center content-center">
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.missions}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Misiones</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.kills}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Total Kills</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.inf}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Infantería</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.soft}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Ligeros</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.armor}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Blindados</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-black text-purple-500 font-mono">{globalStats.aaSpecialist.stats.air}</span><span class="text-[9px] text-purple-500/50 uppercase tracking-widest font-bold">Aéreos</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.aaSpecialist.stats.time}h</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Tiempo</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-red-500 font-mono">{globalStats.aaSpecialist.stats.kia}</span><span class="text-[9px] text-red-500/50 uppercase tracking-widest">Veces KIA</span></div>
+                    </div>
+                </div>
+
+                 {/* 5. MOST KIA */}
+                 <div class="relative bg-pmc-900/80 border border-white/10 flex flex-col xl:flex-row-reverse shadow-xl overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-1 h-full bg-red-500 hidden xl:block"></div>
+                    <div class="absolute top-0 left-0 w-1 h-full bg-red-500 xl:hidden"></div>
+                    <div class="p-8 xl:w-5/12 flex flex-col justify-center border-b xl:border-b-0 xl:border-l border-white/5 bg-linear-to-bl from-red-500/5 to-transparent text-left xl:text-right">
+                        <div class="flex items-center xl:justify-end gap-3 mb-4">
+                            <span class="text-xs font-bold uppercase tracking-[0.2em] text-red-500">{globalStats.mostKia.label}</span>
+                            <div class="p-3 bg-red-500/10 text-red-500 rounded"><Ghost size={28} /></div>
+                        </div>
+                        <h3 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-4 wrap-break-word w-full">{globalStats.mostKia.name}</h3>
+                        <p class="text-white/40 italic font-mono text-sm border-l-2 xl:border-l-0 xl:border-r-2 border-white/20 pl-3 xl:pl-0 xl:pr-3">"{globalStats.mostKia.flavor}"</p>
+                    </div>
+                    <div class="p-8 xl:w-7/12 grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 items-center content-center">
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.missions}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Misiones</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.kills}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Total Kills</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.inf}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Infantería</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.soft}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Ligeros</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.armor}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Blindados</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.air}</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Aéreos</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-bold text-white font-mono">{globalStats.mostKia.stats.time}h</span><span class="text-[9px] text-white/30 uppercase tracking-widest">Tiempo</span></div>
+                        <div class="text-center xl:text-right"><span class="block text-2xl font-black text-red-500 font-mono">{globalStats.mostKia.stats.kia}</span><span class="text-[9px] text-red-500/50 uppercase tracking-widest font-bold">Veces KIA</span></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. SECCIÓN HITOS OPERACIONALES */}
+            <h3 class="text-white font-black text-lg uppercase tracking-widest mb-8 flex items-center gap-3">
+                <AlertOctagon size={20} className="text-pmc-accent"/> Hitos Operacionales
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+                {/* Kill Record */}
+                <div class="bg-pmc-900 border border-white/10 p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-red-500/50 transition-all">
+                    <div class="border-l-4 border-red-500 pl-4 mb-6">
+                        <div class="flex justify-between items-start mb-2"><span class="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500">{globalStats.missionMostKills.label}</span><Flame size={20} className="text-red-500 opacity-80" /></div>
+                        <h4 class="text-2xl font-black text-white uppercase leading-none mb-1 line-clamp-2">{globalStats.missionMostKills.title}</h4>
+                        <div class="flex items-center gap-2 text-white/30 text-[10px] uppercase tracking-widest font-mono"><MapPin size={10} /> {globalStats.missionMostKills.island}</div>
+                    </div>
+                    <div class="mb-6"><span class="text-5xl font-black text-red-500 block leading-none">{globalStats.missionMostKills.val}</span><span class="text-xs text-red-500/50 font-bold uppercase tracking-widest">HOSTILES ABATIDOS</span></div>
+                    <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostKills.allStats.armor}</span><span class="text-[8px] text-white/30 uppercase">Blindados</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostKills.allStats.air}</span><span class="text-[8px] text-white/30 uppercase">Aéreos</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostKills.allStats.kia}</span><span class="text-[8px] text-white/30 uppercase">KIA</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostKills.allStats.players}</span><span class="text-[8px] text-white/30 uppercase">Efectivos</span></div>
+                        <div class="col-span-2"><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostKills.allStats.time}m</span><span class="text-[8px] text-white/30 uppercase">Duración</span></div>
+                    </div>
+                </div>
+
+                {/* Armor Record */}
+                <div class="bg-pmc-900 border border-white/10 p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-orange-500/50 transition-all">
+                    <div class="border-l-4 border-orange-500 pl-4 mb-6">
+                        <div class="flex justify-between items-start mb-2"><span class="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">{globalStats.missionMostArmor.label}</span><ShieldAlert size={20} className="text-orange-500 opacity-80" /></div>
+                        <h4 class="text-2xl font-black text-white uppercase leading-none mb-1 line-clamp-2">{globalStats.missionMostArmor.title}</h4>
+                        <div class="flex items-center gap-2 text-white/30 text-[10px] uppercase tracking-widest font-mono"><MapPin size={10} /> {globalStats.missionMostArmor.island}</div>
+                    </div>
+                    <div class="mb-6"><span class="text-5xl font-black text-orange-500 block leading-none">{globalStats.missionMostArmor.val}</span><span class="text-xs text-orange-500/50 font-bold uppercase tracking-widest">BLINDADOS DESTRUIDOS</span></div>
+                    <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostArmor.allStats.kills}</span><span class="text-[8px] text-white/30 uppercase">Kills</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostArmor.allStats.air}</span><span class="text-[8px] text-white/30 uppercase">Aéreos</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostArmor.allStats.kia}</span><span class="text-[8px] text-white/30 uppercase">KIA</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostArmor.allStats.players}</span><span class="text-[8px] text-white/30 uppercase">Efectivos</span></div>
+                        <div class="col-span-2"><span class="block text-lg font-bold text-white font-mono">{globalStats.missionMostArmor.allStats.time}m</span><span class="text-[8px] text-white/30 uppercase">Duración</span></div>
+                    </div>
+                </div>
+
+                {/* Time Record */}
+                <div class="bg-pmc-900 border border-white/10 p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-green-500/50 transition-all">
+                    <div class="border-l-4 border-green-500 pl-4 mb-6">
+                        <div class="flex justify-between items-start mb-2"><span class="text-[10px] font-bold uppercase tracking-[0.2em] text-green-500">{globalStats.missionLongest.label}</span><Timer size={20} className="text-green-500 opacity-80" /></div>
+                        <h4 class="text-2xl font-black text-white uppercase leading-none mb-1 line-clamp-2">{globalStats.missionLongest.title}</h4>
+                        <div class="flex items-center gap-2 text-white/30 text-[10px] uppercase tracking-widest font-mono"><MapPin size={10} /> {globalStats.missionLongest.island}</div>
+                    </div>
+                    <div class="mb-6"><span class="text-5xl font-black text-green-500 block leading-none">{globalStats.missionLongest.val}<span class="text-2xl">m</span></span><span class="text-xs text-green-500/50 font-bold uppercase tracking-widest">MINUTOS DE OPERACIÓN</span></div>
+                    <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionLongest.allStats.kills}</span><span class="text-[8px] text-white/30 uppercase">Kills</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionLongest.allStats.armor}</span><span class="text-[8px] text-white/30 uppercase">Armor</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionLongest.allStats.kia}</span><span class="text-[8px] text-white/30 uppercase">KIA</span></div>
+                        <div><span class="block text-lg font-bold text-white font-mono">{globalStats.missionLongest.allStats.players}</span><span class="text-[8px] text-white/30 uppercase">Efectivos</span></div>
+                        <div class="col-span-2"><span class="block text-lg font-bold text-white font-mono">{globalStats.missionLongest.allStats.time}m</span><span class="text-[8px] text-white/30 uppercase">Duración</span></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. SECCIÓN TOTALES DE UNIDAD (FOOTER) */}
+            <h3 class="text-white font-black text-lg uppercase tracking-widest mb-8 flex items-center gap-3">
+                <AlertOctagon size={20} className="text-pmc-accent"/> Estadísticas Globales de Unidad
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white/5 p-6 rounded-lg border border-white/10 backdrop-blur-sm">
+                <div class="flex flex-col items-center justify-center border-r border-white/10 last:border-0 p-4">
+                    <span class="text-[10px] text-white/40 uppercase tracking-[0.2em] mb-2 font-bold flex items-center gap-2">Bajas Totales</span>
+                    <span class="text-4xl md:text-5xl font-black text-white tracking-tighter">{globalStats.totalKills}</span>
+                </div>
+                <div class="flex flex-col items-center justify-center border-r border-white/10 last:border-0 p-4">
+                    <span class="text-[10px] text-red-400/60 uppercase tracking-[0.2em] mb-2 font-bold flex items-center gap-2">KIAs</span>
+                    <span class="text-4xl md:text-5xl font-black text-red-500 tracking-tighter">{globalStats.totalKia}</span>
+                </div>
+                <div class="flex flex-col items-center justify-center border-r border-white/10 last:border-0 p-4">
+                    <span class="text-[10px] text-white/40 uppercase tracking-[0.2em] mb-2 font-bold flex items-center gap-2">Operaciones</span>
+                    <span class="text-4xl md:text-5xl font-black text-white tracking-tighter">{globalStats.totalMissions}</span>
+                </div>
+                <div class="flex flex-col items-center justify-center last:border-0 p-4">
+                    <span class="text-[10px] text-green-400/60 uppercase tracking-[0.2em] mb-2 font-bold flex items-center gap-2">Horas Servicio</span>
+                    <span class="text-4xl md:text-5xl font-black text-white tracking-tighter">{(globalStats.totalPlaytime / 3600).toFixed(1)}H</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    {/* --- MODAL DINÁMICO ÚNICO PARA ARCHIVO --- */}
+    <dialog id="dynamic-modal" class="stats-modal backdrop:backdrop-blur-xl bg-transparent p-0 w-full h-full max-w-full max-h-full m-0" onclick="if(event.target === this) closeDynamicModal()">
+        <div class="w-full h-full flex items-center justify-center p-4">
+            <div class="w-[90vw] max-w-5xl bg-pmc-950 border border-white/10 shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+                <div class="bg-pmc-accent p-5 flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-3 text-pmc-950">
+                        <div class="p-1.5 bg-pmc-950 text-pmc-accent rounded-sm"><Crosshair size={20} /></div>
+                        <div class="flex flex-col"><span class="font-black uppercase tracking-tighter text-lg leading-none">Expediente de archivo</span><span class="text-[9px] font-bold opacity-70 tracking-[0.3em]" id="modal-subtitle">ESTADÍSTICAS</span></div>
+                    </div>
+                    <button onclick="closeDynamicModal()" class="text-pmc-950 hover:rotate-90 transition-all duration-300"><X size={28} /></button>
+                </div>
+                
+                <div class="p-8 md:p-12 overflow-y-auto custom-scrollbar">
+                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        <div class="bg-white/5 border border-white/10 p-4 flex items-center gap-4">
+                            <div class="p-3 bg-white/5 rounded-full"><Clock size={24} className="text-pmc-accent"/></div>
+                            <div><p class="text-[9px] text-white/40 uppercase tracking-widest">Duración</p><p class="text-2xl font-black text-white" id="modal-duration">--</p></div>
+                        </div>
+                        <div class="bg-linear-to-r from-yellow-500/10 to-transparent border border-yellow-500/20 p-4 flex items-center gap-4 col-span-2">
+                            <div class="p-3 bg-yellow-500/10 rounded-full"><Trophy size={24} className="text-yellow-500"/></div>
+                            <div><p class="text-[9px] text-yellow-500/80 uppercase tracking-widest font-bold">MVP de la Misión</p><div class="flex items-baseline gap-2"><p class="text-2xl font-black text-white uppercase" id="modal-mvp-name">N/A</p><p class="text-sm font-mono text-white/50" id="modal-mvp-kills">(0 bajas)</p></div></div>
+                        </div>
+                    </div>
+                    
+                    <h4 class="text-white font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={14}/>Informe de operación </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white/5 p-4 text-center border-t-2 border-pmc-accent"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Operadores desplegados</p><p class="text-3xl font-black text-white" id="modal-players">0</p></div>
+                        <div class="bg-white/5 p-4 text-center border-t-2 border-green-500"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Ratio K/D</p><p class="text-3xl font-black text-green-500" id="modal-kd">0</p></div>
+                        <div class="bg-white/5 p-4 text-center border-t-2 border-white"><p class="text-[9px] text-white/40 uppercase tracking-widest mb-1">Hostiles abatidos</p><p class="text-3xl font-black text-white" id="modal-kills">0</p></div>
+                        <div class="bg-red-500/10 p-4 text-center border-t-2 border-red-500"><p class="text-[9px] text-red-500 uppercase tracking-widest mb-1 font-bold">KIAs Aliados</p><p class="text-3xl font-black text-red-500" id="modal-kia">0</p></div>
+                    </div>
+
+                    <div class="mb-8">
+                        <h4 class="text-white font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={14}/> Desglose de Amenazas Neutralizadas</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Sword size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none" id="modal-inf">0</span><span class="text-[9px] text-white/30 uppercase">Infantería</span></div></div>
+                            <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Truck size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none" id="modal-soft">0</span><span class="text-[9px] text-white/30 uppercase">Ligeros</span></div></div>
+                            <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><ShieldAlert size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none" id="modal-armor">0</span><span class="text-[9px] text-white/30 uppercase">Blindados</span></div></div>
+                            <div class="flex items-center gap-3 bg-white/5 p-3 rounded border border-white/5"><Plane size={18} className="text-white/30" /><div><span class="text-xl font-bold text-white block leading-none" id="modal-air">0</span><span class="text-[9px] text-white/30 uppercase">Aéreos</span></div></div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-white/10 pt-8">
+                        <h4 class="text-white font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2"><Users size={14}/>Estadísticas de operadores</h4>
+                        <div class="grid grid-cols-1 gap-2 max-h-75 overflow-y-auto custom-scrollbar pr-2">
+                             <div class="flex items-center justify-between text-[9px] text-white/30 uppercase tracking-widest px-4 pb-2">
+                                <span>Operador</span>
+                                <div class="flex gap-4 sm:gap-8 text-right"><span class="w-8">Inf</span><span class="w-8">Arm</span><span class="w-8">Air</span><span class="w-8 font-bold text-white/50">Total</span><span class="w-8">KIA</span></div>
+                            </div>
+                            <div id="modal-table-body">
+                                {/* JS INJECTED ROWS */}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+</Layout>
+
+<script is:inline>
+    // Tab Switching
+    function switchTab(tabName) {
+        ['missions', 'archive', 'global'].forEach(t => {
+            document.getElementById(`${t}-view`).classList.add('hidden');
+            document.getElementById(`tab-${t}`).classList.remove('active');
+        });
+        document.getElementById(`${tabName}-view`).classList.remove('hidden');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    // Modal Animation Logic (Official Missions)
+    function showModalAnim(id) {
+        const d = document.getElementById(id);
+        if (d) d.showModal();
+    }
+
+    function closeModalAnim(id) {
+        const d = document.getElementById(id);
+        if (d) {
+            d.classList.add('closing');
+            d.addEventListener('animationend', () => {
+                d.close();
+                d.classList.remove('closing');
+            }, { once: true });
+        }
+    }
+
+    // Dynamic Modal Logic (Archive)
+    function openDynamicModal(statsJson, title) {
+        const stats = JSON.parse(statsJson);
+        const modal = document.getElementById('dynamic-modal');
+        
+        document.getElementById('modal-subtitle').textContent = "ESTADÍSTICAS DE MISIÓN: " + title;
+        document.getElementById('modal-duration').textContent = stats.durationFormatted;
+        document.getElementById('modal-mvp-name').textContent = stats.mvpName;
+        document.getElementById('modal-mvp-kills').textContent = `(${stats.mvpKills} bajas)`;
+        
+        document.getElementById('modal-players').textContent = stats.totalPlayers;
+        document.getElementById('modal-kd').textContent = stats.kdaRatio;
+        document.getElementById('modal-kills').textContent = stats.totalKills;
+        document.getElementById('modal-kia').textContent = stats.totalKia;
+        
+        document.getElementById('modal-inf').textContent = stats.breakdown?.inf || 0;
+        document.getElementById('modal-soft').textContent = stats.breakdown?.soft || 0;
+        document.getElementById('modal-armor').textContent = stats.breakdown?.armor || 0;
+        document.getElementById('modal-air').textContent = stats.breakdown?.air || 0;
+
+        // Populate Table
+        const tbody = document.getElementById('modal-table-body');
+        tbody.innerHTML = '';
+        if(stats.playersDetail && stats.playersDetail.length > 0) {
+            stats.playersDetail.forEach((p, index) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-white/5 p-3 rounded-sm border-l-2 border-transparent hover:border-pmc-accent hover:bg-white/10 transition-all group";
+                div.innerHTML = `
+                    <div class="flex items-center gap-3"><span class="text-white/20 font-mono text-xs w-4">#${index + 1}</span><span class="font-bold text-white text-sm group-hover:text-pmc-accent transition-colors">${p.name}</span></div>
+                    <div class="flex gap-4 sm:gap-8 text-right font-mono text-xs text-white/60">
+                        <span class="w-8 flex items-center justify-end gap-1">${p.killsInfantry}</span>
+                        <span class="w-8 flex items-center justify-end gap-1">${p.killsArmor}</span>
+                        <span class="w-8 flex items-center justify-end gap-1">${p.killsAir}</span>
+                        <span class="w-8 font-bold text-pmc-accent">${p.killsTotal}</span>
+                        <span class="w-8 font-bold ${p.killed > 0 ? 'text-red-500' : 'text-green-500/50'}">${p.killed > 0 ? "KIA" : "OK"}</span>
+                    </div>
+                `;
+                tbody.appendChild(div);
+            });
+        } else {
+             tbody.innerHTML = '<div class="text-white/20 text-center text-xs py-4">Sin datos de jugadores</div>';
+        }
+
+        modal.showModal();
+    }
+
+    function closeDynamicModal() {
+        const d = document.getElementById('dynamic-modal');
+        d.classList.add('closing');
+        d.addEventListener('animationend', () => {
+            d.close();
+            d.classList.remove('closing');
+        }, { once: true });
+    }
+</script>
+
+<style>
+    .text-outline { -webkit-text-stroke: 1px rgba(251, 146, 60, 0.4); color: transparent; }
+    .tactical-grid { background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 40px 40px; }
+    .bg-radial-tactical { background: radial-gradient(circle at center, rgba(251,146,60,0.03) 0%, transparent 70%); }
+    .tab-btn.active { color: #fb923c; border-bottom-color: #fb923c; background-color: rgba(255, 255, 255, 0.02); }
+    .hidden { display: none; }
+    .view-section { animation: fadeIn 0.5s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* MODAL FIXED FULLSCREEN */
+    .stats-modal { position: fixed; inset: 0; z-index: 9999; background: transparent; display: none; }
+    
+    /* ANIMACIÓN ENTRADA */
+    dialog[open] { display: block; animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    
+    /* ANIMACIÓN SALIDA */
+    dialog.closing { animation: modalOut 0.2s ease-in forwards; }
+
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+    @keyframes modalOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
+    
+    .stats-modal::backdrop { background: rgba(2, 6, 23, 0.95); backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s; }
+    dialog[open]::backdrop { opacity: 1; }
+    dialog.closing::backdrop { opacity: 0; }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #fb923c; border-radius: 10px; }
+</style>

@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  /* --- PALETA DE COLORES PMC --- */
+  --color-pmc-950: #050505;
+  --color-pmc-900: #121214;
+  --color-pmc-800: #27272a;
+  --color-pmc-accent: #f59e0b; /* Amber-500 */
+  --color-pmc-dim: #a1a1aa;    /* Zinc-400 */
+  --color-pmc-alert: #b71e0e;  /* Red-700 */
+
+  /* --- FUENTES --- */
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* --- ANIMACIONES --- */
+  --animate-slow-zoom: slow-zoom 20s infinite alternate ease-in-out;
+
+  @keyframes slow-zoom {
+    0% { transform: scale(1.25); }
+    100% { transform: scale(1.35); }
+  }
+}
+
+/* --- UTILIDADES PERSONALIZADAS --- */
+@utility clip-path-slant {
+  clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%, 0 25%);
+}
+
+/* ESTILO 1: Botón Glass Grande (Hero) */
+@utility btn-glass {
+  @apply relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase transition-all duration-300;
+  @apply bg-pmc-950/50 border border-white/10 backdrop-blur-md;
+  @apply hover:bg-pmc-950/70 hover:border-pmc-accent/50 cursor-pointer inline-flex items-center justify-center;
+  clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%, 0 25%);
+}
+/* ESTILO 2: Botón Glass Pequeño (Navbar) */
+@utility btn-glass-sm {
+  @apply relative px-6 py-2 font-mono text-xs font-bold tracking-widest uppercase transition-all duration-300;
+  @apply bg-pmc-950/40 border border-white/10 backdrop-blur-md;
+  @apply hover:bg-pmc-950/80 hover:border-pmc-accent/50 cursor-pointer inline-flex items-center justify-center;
+  clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%, 0 25%);
+}
+
+/* --- ESTILOS BASE --- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--color-pmc-950);
+    color: white;
+  }
+
+  /* Scrollbar Táctica */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-pmc-950);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-pmc-800);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-pmc-accent);
+  }
+}

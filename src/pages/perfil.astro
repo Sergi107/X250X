@@ -1,0 +1,359 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { 
+    Shield, Activity, Crosshair, Skull, Clock, Calendar, 
+    FileText, AlertTriangle, Medal, Trophy, Star, Target, 
+    Zap, Ghost, Heart, Crown, Sword, Plane, ShieldCheck, 
+    Bomb, PenTool, Flame, Radio, Fingerprint, MapPin,
+    Award, Hourglass, List
+} from "lucide-react";
+import { SESSION_COOKIE } from "../lib/auth";
+import { getOrbatData, specialtyConfig } from "../lib/orbat-service";
+
+// 1. DEFINICIÓN DE TIPOS
+interface UserSession {
+    id: string;
+    username: string;
+    avatar: string;
+    exp: number;
+}
+
+// 2. SEGURIDAD
+if (!Astro.cookies.has(SESSION_COOKIE)) {
+    return Astro.redirect("/");
+}
+
+let session: UserSession | null = null;
+let operator: any = null;
+
+try {
+    const cookieValue = Astro.cookies.get(SESSION_COOKIE)?.value;
+    if (cookieValue) {
+        const buffer = Buffer.from(cookieValue, 'base64');
+        const decoded = JSON.parse(buffer.toString('utf-8'));
+        session = decoded as UserSession;
+
+        if (session.exp < Date.now()) return Astro.redirect("/api/auth/logout");
+
+        const allOrbat = await getOrbatData();
+        operator = allOrbat.find((op: any) => op.id === session?.id);
+    }
+} catch (e) {
+    console.error("Error leyendo perfil:", e);
+    return Astro.redirect("/api/auth/logout");
+}
+
+if (!session) return Astro.redirect("/");
+
+// 3. MAPEO DE ICONOS (Asegurando coincidencia con ORBAT)
+const IconMap: any = {
+    Activity, Skull, ShieldCheck, Clock, Crown, Medal, Footprints: MapPin, 
+    Users: Shield, Crosshair, Sword, Shield, Plane, Bomb, Star, Hourglass: Clock, 
+    Ghost, Zap, Target, Heart, Trophy
+};
+
+const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr === "N/A") return "Pendiente";
+    try { return new Date(dateStr).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }); }
+    catch { return dateStr; }
+};
+
+const getSpecColor = (spec: string) => {
+    return specialtyConfig[spec]?.color || "text-gray-400";
+};
+---
+
+<Layout title={`Expediente: ${operator ? operator.name : session.username}`}>
+    
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,146,60,0.05),transparent_40%)]"></div>
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[64px_64px]"></div>
+    </div>
+
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+      <img src="/multimedia/025.png" alt="" class="absolute inset-0 w-full h-full object-cover opacity-5 transform scale-110" />
+      <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-size-[40px_40px]"></div>
+    </div>
+
+    <main class="relative z-10 pt-32 pb-20 container mx-auto px-4 max-w-7xl">
+
+        <div class="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-pmc-accent font-mono uppercase tracking-[0.3em] flex items-center gap-2">
+                    <FileText size={12} /> Personnel File // {session.id}
+                </span>
+                <h1 class="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">
+                    HOJA DE SERVICIO
+                </h1>
+            </div>
+            <div class="hidden md:block text-right">
+                <div class="text-[10px] text-white/30 font-mono uppercase tracking-widest">Estado Actual</div>
+                <div class={`text-xl font-bold uppercase ${operator && operator.status !== 'offline' ? 'text-green-500' : 'text-white/50'}`}>
+                    {operator && operator.status !== 'offline' ? 'ACTIVO / EN SERVICIO' : 'RESERVISTA / OFFLINE'}
+                </div>
+            </div>
+        </div>
+
+        {operator ? (
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                
+                {/* === COLUMNA IZQUIERDA: IDENTIDAD === */}
+                <div class="lg:col-span-4 space-y-6">
+                    
+                    <div class="bg-black/40 border border-white/10 p-6 relative overflow-hidden group">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-pmc-accent"></div>
+                        
+                        <div class="flex flex-col items-center text-center">
+                            <div class="relative w-48 h-48 mb-6">
+                                <img src={operator.avatar} class="w-full h-full object-cover border-4 border-white/5 shadow-2xl" />
+                                <div class="absolute bottom-4 right-4 bg-black/80 backdrop-blur text-white text-[10px] font-bold px-2 py-1 border border-white/20 uppercase tracking-widest">
+                                    {operator.rank}
+                                </div>
+                            </div>
+
+                            <h2 class="text-3xl font-black text-white uppercase leading-none mb-2">{operator.name}</h2>
+                            <span class={`text-sm font-mono uppercase tracking-[0.2em] font-bold ${getSpecColor(operator.specialty)}`}>
+                                {operator.specialty}
+                            </span>
+                        </div>
+
+                        <div class="mt-8 space-y-4 border-t border-white/5 pt-6">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-white/40 uppercase tracking-widest text-[10px]">Fecha Alistamiento</span>
+                                <span class="text-white font-mono">{formatDate(operator.joinedAtRaw)}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-white/40 uppercase tracking-widest text-[10px]">Tiempo Servicio</span>
+                                <span class="text-white font-mono">{operator.customStats.find((s:any) => s.label.includes('Horas'))?.value || 0} Horas</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-white/40 uppercase tracking-widest text-[10px]">Unidad</span>
+                                <span class="text-pmc-accent font-bold">PMC-250</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/5 border border-white/5 p-6">
+                        <h3 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-4 flex items-center gap-2">
+                            <Shield size={12} /> Certificaciones & Roles
+                        </h3>
+                        <div class="flex flex-wrap gap-2">
+                            {operator.roles.map((role: string) => (
+                                <span class="text-[10px] bg-black/50 border border-white/10 text-white/70 px-2 py-1 uppercase font-bold rounded-sm">
+                                    {role}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* === COLUMNA DERECHA: ESTADÍSTICAS Y LOGROS === */}
+                <div class="lg:col-span-8 space-y-6">
+
+                    {/* METRICAS PRINCIPALES */}
+                    {operator.stats ? (
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-pmc-accent/10 border border-pmc-accent/20 p-4 flex flex-col justify-between h-32">
+                                <div class="flex justify-between items-start">
+                                    <span class="text-[9px] text-pmc-accent uppercase tracking-widest font-bold">Eficacia (Kills)</span>
+                                    <Crosshair className="text-pmc-accent opacity-50" size={16} />
+                                </div>
+                                <span class="text-4xl font-black text-white">{operator.stats.totalKills}</span>
+                            </div>
+
+                            <div class="bg-black/40 border border-white/10 p-4 flex flex-col justify-between h-32">
+                                <div class="flex justify-between items-start">
+                                    <span class="text-[9px] text-white/50 uppercase tracking-widest font-bold">Asistencia</span>
+                                    <Calendar className="text-white/30" size={16} />
+                                </div>
+                                <span class={`text-4xl font-black ${operator.attendanceColor}`}>{operator.attendance}</span>
+                            </div>
+
+                            <div class="bg-black/40 border border-white/10 p-4 flex flex-col justify-between h-32">
+                                <div class="flex justify-between items-start">
+                                    <span class="text-[9px] text-white/50 uppercase tracking-widest font-bold">Supervivencia</span>
+                                    <Heart className="text-blue-400 opacity-50" size={16} />
+                                </div>
+                                <span class="text-4xl font-black text-blue-400">
+                                    {operator.customStats.find((s:any) => s.label === 'Supervivencia')?.value || "0%"}
+                                </span>
+                            </div>
+
+                            <div class="bg-black/40 border border-white/10 p-4 flex flex-col justify-between h-32">
+                                <div class="flex justify-between items-start">
+                                    <span class="text-[9px] text-white/50 uppercase tracking-widest font-bold">Misiones</span>
+                                    <FileText className="text-white/30" size={16} />
+                                </div>
+                                <span class="text-4xl font-black text-white">{operator.stats.totalMissions}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div class="p-6 bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-mono flex items-center gap-3">
+                            <AlertTriangle size={20} />
+                            Sin datos de combate registrados en el servidor.
+                        </div>
+                    )}
+
+                    {/* MEDALLAS (LAS 5 PRINCIPALES) */}
+                    <div class="bg-white/5 border border-white/5 p-8 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                            <Medal size={120} />
+                        </div>
+                        <h3 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-6 flex items-center gap-2 relative z-10">
+                            <Award size={12} /> Condecoraciones Mayores
+                        </h3>
+
+                        {operator.medals && operator.medals.length > 0 ? (
+                            <div class="flex flex-wrap gap-4 relative z-10">
+                                {operator.medals.map((medal: any) => {
+                                    const MIcon = IconMap[medal.icon] || Medal;
+                                    const activeClass = "bg-yellow-500/10 border-yellow-500/40 text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]";
+                                    const lockedClass = "bg-black/40 border-white/10 text-white/20 grayscale opacity-60";
+
+                                    return (
+                                        <div class={`group relative p-3 border transition-all ${medal.achieved ? activeClass : lockedClass}`}>
+                                            <MIcon size={24} />
+                                            {/* Tooltip */}
+                                            <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-pmc-950 border border-white/20 p-2 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                                <p class="text-[10px] font-bold text-white uppercase tracking-widest mb-1">{medal.name}</p>
+                                                {!medal.achieved && <span class="text-[9px] text-red-400 font-mono">BLOQUEADO</span>}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <p class="text-white/20 italic text-sm relative z-10">Sin condecoraciones registradas.</p>
+                        )}
+                    </div>
+
+                    {/* === AÑADIDO: SECCIÓN DE HITOS (ACHIEVEMENTS) === */}
+                    <div class="bg-white/5 border border-white/5 p-8 relative overflow-hidden">
+                         <h3 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-6 flex items-center gap-2 relative z-10">
+                            <Trophy size={12} /> Hitos de Carrera
+                        </h3>
+                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                            {operator.achievements && operator.achievements.map((ach: any) => {
+                                const AIcon = IconMap[ach.icon] || Trophy;
+                                // Estilos idénticos al ORBAT modal
+                                const activeClass = "bg-pmc-accent/20 border-pmc-accent text-pmc-accent shadow-lg";
+                                const lockedClass = "bg-white/5 border-white/10 text-white/20 grayscale";
+
+                                return (
+                                    <div class={`aspect-square flex flex-col items-center justify-center rounded border transition-all group relative ${ach.achieved ? activeClass : lockedClass}`}>
+                                        <div class="scale-90 mb-2"><AIcon size={20} /></div>
+                                        <span class="text-[9px] font-bold uppercase text-center leading-tight px-1">{ach.name}</span>
+                                        
+                                        {/* Tooltip */}
+                                        <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-40 bg-black border border-white/20 p-2 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                            <p class="text-[10px] font-bold text-white uppercase mb-1">{ach.name}</p>
+                                            <p class="text-[9px] text-white/60 font-mono">{ach.desc}</p>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                         </div>
+                    </div>
+
+                    {/* DESGLOSE DE COMBATE (Barras) */}
+                    {operator.stats && (
+                        <div class="bg-black/20 border border-white/5 p-6">
+                            <h3 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-6 flex items-center gap-2">
+                                <Target size={12} /> Perfil de Letalidad
+                            </h3>
+                            <div class="space-y-4 font-mono text-xs">
+                                {[
+                                    { label: "Infantería", val: operator.stats.breakdown.inf, color: "bg-blue-500" },
+                                    { label: "Blindados", val: operator.stats.breakdown.armor, color: "bg-orange-500" },
+                                    { label: "Aéreos", val: operator.stats.breakdown.air, color: "bg-purple-500" },
+                                    { label: "Ligeros/Edificios", val: operator.stats.breakdown.soft, color: "bg-green-500" }
+                                ].map(stat => {
+                                    const max = Math.max(1, operator.stats.totalKills);
+                                    const pct = (stat.val / max) * 100;
+                                    return (
+                                        <div class="flex items-center gap-4">
+                                            <span class="w-24 text-white/50 text-right uppercase tracking-widest text-[9px]">{stat.label}</span>
+                                            <div class="grow h-2 bg-white/5 rounded-full overflow-hidden">
+                                                <div class={`h-full ${stat.color} shadow-[0_0_10px_currentColor]`} style={`width: ${pct}%`}></div>
+                                            </div>
+                                            <span class="w-8 text-right font-bold text-white">{stat.val}</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* HISTORIAL RECIENTE */}
+                    <div class="bg-white/5 border border-white/5 p-6">
+                        <h3 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-6 flex items-center gap-2">
+                            <Clock size={12} /> Últimas Operaciones
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-white/10 text-[9px] text-white/30 uppercase tracking-widest">
+                                        <th class="p-3 font-normal">Operación</th>
+                                        <th class="p-3 font-normal">Fecha</th>
+                                        <th class="p-3 font-normal text-right">Bajas</th>
+                                        <th class="p-3 font-normal text-right">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-xs font-mono">
+                                    {operator.stats && operator.stats.history ? (
+                                        [...operator.stats.history].reverse().slice(0, 5).map((m: any) => (
+                                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                                <td class="p-3 font-bold text-white">{m.name}</td>
+                                                <td class="p-3 text-white/60">{formatDate(m.date)}</td>
+                                                <td class="p-3 text-right text-pmc-accent">{m.kills}</td>
+                                                <td class={`p-3 text-right font-bold ${m.deaths > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                    {m.deaths > 0 ? 'KIA' : 'OK'}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colspan="4" class="p-4 text-center text-white/20 italic">No hay historial disponible</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        ) : (
+            /* VISTA DE NO REGISTRADO */
+            <div class="flex flex-col items-center justify-center min-h-[50vh] text-center animate-in fade-in zoom-in duration-500">
+                <div class="w-32 h-32 rounded-full border-4 border-white/10 overflow-hidden mb-6 relative">
+                    <img src={`https://cdn.discordapp.com/avatars/${session.id}/${session.avatar}.png`} class="w-full h-full object-cover grayscale" />
+                    <div class="absolute inset-0 bg-red-500/10"></div>
+                </div>
+                
+                <h2 class="text-3xl font-black text-white uppercase mb-2">Bienvenido, {session.username}</h2>
+                <div class="px-4 py-1 bg-white/10 text-white/60 text-xs font-mono uppercase tracking-widest rounded mb-8">
+                    Identidad Confirmada // No Afiliado
+                </div>
+
+                <div class="max-w-xl bg-black/40 border border-white/10 p-8 backdrop-blur-sm">
+                    <AlertTriangle className="mx-auto text-pmc-accent mb-4" size={32} />
+                    <h3 class="text-xl font-bold text-white uppercase mb-4">Acceso Restringido al Archivo Táctico</h3>
+                    <p class="text-gray-400 mb-6 leading-relaxed">
+                        Tu cuenta de Discord está verificada, pero no figura en el listado activo de operadores de la <b>PMC-250</b>. 
+                        Para acceder a tu hoja de servicio, estadísticas y medallas, debes completar tu proceso de alistamiento y participar en operaciones oficiales.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                        <a href="/unirse" class="px-8 py-3 bg-pmc-accent hover:bg-white text-black font-black uppercase tracking-widest transition-all">
+                            Solicitar Alistamiento
+                        </a>
+                        <a href="https://discord.gg/rWkuvAN" target="_blank" class="px-8 py-3 border border-white/20 hover:border-white text-white font-bold uppercase tracking-widest transition-all">
+                            Contactar Staff
+                        </a>
+                    </div>
+                </div>
+            </div>
+        )}
+
+    </main>
+</Layout>

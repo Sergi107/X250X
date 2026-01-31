@@ -1,0 +1,120 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { ChevronLeft, Download, ExternalLink, Youtube } from 'lucide-react';
+---
+
+<Layout title="Descarga de Preset - PMC250">
+    
+    <div class="fixed inset-0 z-0">
+        <img src="/bg2.png" alt="Fondo Táctico" class="w-full h-full object-cover opacity-30" />
+        <div class="absolute inset-0 bg-pmc-950/90"></div>
+    </div>
+
+    <div class="relative z-10 pt-32 pb-20">
+        <div class="container mx-auto px-6 max-w-4xl">
+            
+            <a href="/guias" class="inline-flex items-center gap-2 text-gray-400 hover:text-pmc-accent mb-8 transition-colors text-sm font-mono uppercase tracking-widest">
+                <ChevronLeft size={16} /> Volver al Centro de Doctrina
+            </a>
+
+            <header class="mb-12 border-b border-white/10 pb-10">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest rounded border border-blue-500/30">
+                        Nivel 1: Novato
+                    </span>
+                    <span class="text-gray-500 text-xs font-mono">Actualizado: FEB 2026</span>
+                </div>
+                
+                <h1 class="text-4xl md:text-5xl font-black text-white uppercase mb-6 leading-tight">
+                    Descarga de <span class="text-pmc-accent">Preset de Mods</span>
+                </h1>
+                
+                <p class="text-xl text-gray-300 leading-relaxed">
+                    Instrucciones oficiales para la instalación y configuración del preset de mods, esencial para el funcionamiento correcto de Arma 3 en PMC250.
+                </p>
+            </header>
+
+            <section class="mb-16">
+                <div class="flex items-center gap-3 mb-6">
+                    <Youtube className="text-red-500" size={24} />
+                    <h2 class="text-xl font-bold text-white uppercase tracking-wider">Video Tutorial</h2>
+                </div>
+                
+                <div class="w-full border border-white/10 bg-black rounded-sm overflow-hidden" style="position: relative; padding-bottom: 56.25%; height: 0;">
+                    {/* VIDEO ACTUALIZADO: Launcher de Arma 3 */}
+                    <iframe 
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                        src="https://www.youtube.com/embed/IBHocY1I6Nk" 
+                        title="Tutorial Instalación Preset de Mods"
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+                <p class="mt-4 text-sm text-gray-500 italic">
+                    Sigue este video para ver el proceso exacto dentro del Launcher de Arma 3.
+                </p>
+            </section>
+
+            <article class="text-gray-300">
+                
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    1. Descarga del Preset
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                        El preset de mods se encuentra en nuestro Discord, en el canal #🔔-notificaciones. Busca el archivo llamado <strong class="text-white font-bold">"Arma 3_Preset_(Fecha de ultima actualización).html"</strong> y descárgalo en tu escritorio.
+                </p>
+
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    2. Proceso de Instalación
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    Una vez descargado el preset, sigue estos pasos:
+                </p>
+                
+                <ul class="mb-8 pl-6 space-y-4 list-disc marker:text-pmc-accent">
+                    <li>
+                        <strong class="text-white font-bold">Abre el Launcher de ARMA 3:</strong> Inicia el juego desde Steam para que se abra el lanzador [00:02].
+                    </li>
+                    <li>
+                        <strong class="text-white font-bold">Pestaña MODS:</strong> Haz clic en la opción "MODS" del menú lateral izquierdo [00:03].
+                    </li>
+                    <li>
+                        <strong class="text-white font-bold">Menú Configuración:</strong> Arriba a la derecha, haz clic en "Configuración" (o el icono de la flecha junto a "Preset") [00:08].
+                    </li>
+                    <li>
+                        <strong class="text-white font-bold">Importar:</strong> Selecciona "Importar", busca tu archivo .html y dale a "Abrir" [00:10].
+                    </li>
+                </ul>
+
+                <div class="bg-blue-500/10 border-l-4 border-blue-500 p-6 my-10">
+                    <p class="text-white font-bold mb-2 flex items-center gap-2">
+                        <Download size={18} /> Nota para Reclutas
+                    </p>
+                    <p class="text-sm m-0">
+                        Al importar, Steam detectará automáticamente los mods que te faltan y comenzará la descarga. Asegúrate de que todos los mods del preset estén marcados con el check naranja antes de iniciar el juego.
+                    </p>
+                </div>
+
+            </article>
+
+            <div class="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="text-gray-500 text-sm font-mono">
+                    ID Documento: RECL-002
+                </div>
+                <div class="flex gap-4">
+                    <a href="/guias/como-unirse" class="px-6 py-3 border border-white/10 text-white font-bold uppercase tracking-widest hover:bg-white/5 transition-colors text-xs">
+                        Anterior
+                    </a>
+                    <a href="/guias/configuracion" class="px-6 py-3 bg-pmc-accent text-pmc-950 font-bold uppercase tracking-widest hover:bg-white transition-colors text-xs">
+                        Siguiente Guía
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</Layout>

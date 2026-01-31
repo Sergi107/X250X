@@ -1,0 +1,229 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { 
+    Search, 
+    BookOpen, 
+    ChevronRight,
+    UserPlus,
+    Mic,
+    Download,
+    Settings,
+    Keyboard,
+    HeartPulse,
+    Radio,
+    Shield,
+    Signal,
+    FileText,
+    Truck,
+    Target,
+    Hammer,
+    Bomb,
+    Map,
+    Code,
+    Zap
+} from 'lucide-react';
+
+// 1. GUÍAS
+const levels = [
+    {
+        id: "level-1",
+        name: "NOVATO",
+        badge: "NIVEL 1",
+        color: "bg-gray-700",
+        guides: [
+            { title: "Cómo Unirse", desc: "Pasos previos, entrevista en Discord y normas básicas.", icon: UserPlus, link: "/guias/como-unirse", color: "orange", iconColor: "text-orange-400", bgColor: "bg-orange-500/10", barColor: "bg-orange-500" },
+            { title: "Descarga TS3", desc: "Instalación del cliente de voz y configuración del plugin ACRE2.", icon: Mic, link: "/guias/descarga-ts3", color: "blue", iconColor: "text-blue-400", bgColor: "bg-blue-500/10", barColor: "bg-blue-500" },
+            { title: "Preset de Mods", desc: "Importación del HTML en el launcher y verificación de archivos.", icon: Download, link: "/guias/descarga-preset", color: "purple", iconColor: "text-purple-400", bgColor: "bg-purple-500/10", barColor: "bg-purple-500" },
+            { title: "Configuración Controles", desc: "Perfil de teclas sugerido y guia de controles.", icon: Settings, link: "#", color: "gray", iconColor: "text-gray-200", bgColor: "bg-gray-500/10", barColor: "bg-gray-500" },
+            { title: "Teclas Básicas", desc: "Interacciones ACE, movimiento...", icon: Keyboard, link: "#", color: "yellow", iconColor: "text-yellow-400", bgColor: "bg-yellow-500/10", barColor: "bg-yellow-500" },
+            { title: "Primeros Auxilios", desc: "Uso de torniquetes y vendajes. Protocolo básico de supervivencia.", icon: HeartPulse, link: "#", color: "red", iconColor: "text-red-400", bgColor: "bg-red-500/10", barColor: "bg-red-500" },
+        ]
+    },
+    {
+        id: "level-2",
+        name: "SOLDADO",
+        badge: "NIVEL 2",
+        color: "bg-green-700",
+        guides: [
+            { title: "Radio Corta (343)", desc: "Uso y configuración de la radio intra-escuadra.", icon: Radio, link: "#", color: "green", iconColor: "text-green-500", bgColor: "bg-green-500/10", barColor: "bg-green-500" },
+            { title: "Radio Media (152)", desc: "Comunicación entre líderes y enlace básico.", icon: Signal, link: "#", color: "green", iconColor: "text-green-500", bgColor: "bg-green-500/10", barColor: "bg-green-500" },
+            { title: "Radio Larga (117F)", desc: "Operación de radio mochila para RTOs y Mando.", icon: Signal, link: "#", color: "green", iconColor: "text-green-500", bgColor: "bg-green-500/10", barColor: "bg-green-500" },
+            { title: "Protocolo de Radio", desc: "Brevity codes, alfabeto fonético y disciplina de malla.", icon: Mic, link: "#", color: "green", iconColor: "text-green-500", bgColor: "bg-green-500/10", barColor: "bg-green-500" },
+            { title: "Posiciones de Combate", desc: "Coberturas, formaciones y sectores de tiro.", icon: Shield, link: "#", color: "amber", iconColor: "text-amber-500", bgColor: "bg-amber-500/10", barColor: "bg-amber-500" },
+            { title: "Protocolo de Actuación", desc: "Reglas de enfrentamiento (ROE) y comportamiento en base.", icon: FileText, link: "#", color: "blue", iconColor: "text-blue-500", bgColor: "bg-blue-500/10", barColor: "bg-blue-500" },
+            { title: "Vehículo Terrestre", desc: "Conducción en convoy, mantenimiento y reparaciones.", icon: Truck, link: "#", color: "gray", iconColor: "text-gray-400", bgColor: "bg-gray-500/10", barColor: "bg-gray-500" },
+        ]
+    },
+    {
+        id: "level-3",
+        name: "ESPECIALISTA",
+        badge: "NIVEL 3",
+        color: "bg-red-900",
+        guides: [
+            { title: "Operador AT", desc: "Lanzadores antitanque, tipos de munición y cálculo de distancias.", icon: Target, link: "#", color: "red", iconColor: "text-red-500", bgColor: "bg-red-500/10", barColor: "bg-red-500" },
+            { title: "Operador AA", desc: "Sistemas MANPADS y defensa antiaérea estática.", icon: Target, link: "#", color: "red", iconColor: "text-red-500", bgColor: "bg-red-500/10", barColor: "bg-red-500" },
+            { title: "Guía Médico", desc: "Farmacología avanzada, cirugía de campo y constantes vitales (KAT).", icon: HeartPulse, link: "#", color: "red", iconColor: "text-red-500", bgColor: "bg-red-500/10", barColor: "bg-red-500" },
+            { title: "Guía Breacher", desc: "Técnicas de entrada explosiva y balística en entornos CQC.", icon: Hammer, link: "#", color: "orange", iconColor: "text-orange-500", bgColor: "bg-orange-500/10", barColor: "bg-orange-500" },
+            { title: "Guía Zapador", desc: "Detección y desactivación de minas (EOD). Demoliciones.", icon: Bomb, link: "#", color: "orange", iconColor: "text-orange-500", bgColor: "bg-orange-500/10", barColor: "bg-orange-500" },
+        ]
+    },
+    {
+        id: "level-4",
+        name: "EDICIÓN",
+        badge: "NIVEL 4",
+        color: "bg-cyan-700",
+        guides: [
+            { title: "Creación de Misión", desc: "Primeros pasos en el Eden Editor. Configuración de módulos básicos.", icon: Map, link: "#", color: "cyan", iconColor: "text-cyan-500", bgColor: "bg-cyan-500/10", barColor: "bg-cyan-500" },
+            { title: "Scripting de Misión", desc: "Introducción a SQF. Triggers, spawners y lógica avanzada.", icon: Code, link: "#", color: "purple", iconColor: "text-purple-500", bgColor: "bg-purple-500/10", barColor: "bg-purple-500" },
+            { title: "Operador Zeus", desc: "Gestión de partidas en tiempo real. Interfaz de Game Master.", icon: Zap, link: "#", color: "yellow", iconColor: "text-yellow-500", bgColor: "bg-yellow-500/10", barColor: "bg-yellow-500" },
+        ]
+    }
+];
+---
+
+<Layout title="Centro de Doctrina y Guías">
+    
+    <div class="fixed inset-0 z-0">
+        <img 
+            src="/bg2.png" 
+            alt="Fondo Táctico" 
+            class="w-full h-full object-cover opacity-40"
+        />
+        <div class="absolute inset-0 bg-pmc-950/80"></div>
+    </div>
+
+    <div class="relative z-10">
+
+        <section class="w-full pt-40 pb-16 px-6 border-b border-white/5">
+            <div class="container mx-auto text-center">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded bg-pmc-accent/10 border border-pmc-accent/20 text-pmc-accent text-[10px] font-mono tracking-widest uppercase mb-6 backdrop-blur-md">
+                    <BookOpen size={12} />
+                    Base de Conocimiento
+                </div>
+                
+                <h1 class="text-4xl md:text-6xl font-black text-white uppercase mb-6 drop-shadow-2xl">
+                    Manual de <span class="text-transparent bg-clip-text bg-linear-to-r from-pmc-accent to-orange-600">Campo</span>
+                </h1>
+                
+                <div class="max-w-xl mx-auto relative group mt-8">
+                    <div class="absolute -inset-0.5 bg-linear-to-r from-pmc-accent/50 to-orange-600/50 rounded blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                    <div class="relative flex items-center bg-pmc-900/80 backdrop-blur-md border border-white/10 rounded overflow-hidden">
+                        <div class="pl-4 text-gray-400">
+                            <Search size={20} />
+                        </div>
+                        <input 
+                            id="search-input"
+                            type="text" 
+                            placeholder="Buscar manual operativo..." 
+                            class="w-full bg-transparent border-none text-white px-4 py-4 focus:outline-none placeholder-gray-500 font-mono text-sm"
+                        />
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div id="guides-container">
+            {levels.map((level) => (
+                <section class="py-16 level-section" data-level={level.id}>
+                    <div class="container mx-auto px-6">
+                        
+                        <div class="flex items-center gap-4 mb-10 section-header">
+                            <div class="h-px bg-white/10 grow"></div>
+                            <h2 class="text-2xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                <span class={`${level.color} text-white px-2 py-0.5 rounded text-sm`}>{level.badge}</span>
+                                {level.name}
+                            </h2>
+                            <div class="h-px bg-white/10 grow"></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {level.guides.map((guide) => {
+                                const Icon = guide.icon;
+                                return (
+                                    <article 
+                                        class="guide-card group relative bg-pmc-950/60 backdrop-blur-md border border-white/10 overflow-hidden hover:border-pmc-accent/50 transition-colors duration-300"
+                                        data-title={guide.title.toLowerCase()}
+                                        data-desc={guide.desc.toLowerCase()}
+                                    >
+                                        <div class="p-8 relative z-10">
+                                            <div class={`w-10 h-10 ${guide.bgColor} ${guide.iconColor} flex items-center justify-center rounded mb-6`}>
+                                                <Icon size={20} />
+                                            </div>
+                                            <h3 class="text-xl font-bold text-white uppercase mb-3 group-hover:text-pmc-accent transition-colors">{guide.title}</h3>
+                                            <p class="text-sm text-gray-400 mb-6 min-h-10">{guide.desc}</p>
+                                            <a href={guide.link} class="inline-flex items-center gap-2 text-xs font-mono font-bold text-white uppercase tracking-widest group-hover:text-pmc-accent transition-colors">
+                                                Leer Guía <ChevronRight size={14} />
+                                            </a>
+                                        </div>
+                                        <div class={`absolute bottom-0 left-0 w-full h-1 ${guide.barColor}`}></div>
+                                    </article>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </section>
+            ))}
+        </div>
+
+        <div id="no-results" class="hidden text-center py-40">
+            <p class="text-gray-500 font-mono uppercase tracking-[0.5em]">No se han encontrado manuales que coincidan con la búsqueda</p>
+        </div>
+
+        <section class="py-16 bg-pmc-950/80 backdrop-blur-md border-t border-white/5">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-2xl font-bold text-white mb-4">¿Dudas Técnicas?</h2>
+                <p class="text-gray-400 mb-8">Abre un ticket de soporte en nuestro Discord.</p>
+                <a href="#" class="inline-flex items-center justify-center px-8 py-3 bg-white/5 border border-white/10 hover:bg-pmc-accent hover:text-pmc-950 hover:border-pmc-accent transition-all font-bold text-sm uppercase tracking-widest cursor-pointer">
+                    Ir al Discord
+                </a>
+            </div>
+        </section>
+        
+    </div>
+
+</Layout>
+
+<script>
+    // LÓGICA DE BÚSQUEDA
+    const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const guideCards = document.querySelectorAll('.guide-card');
+    const sections = document.querySelectorAll('.level-section');
+    const noResults = document.getElementById('no-results');
+
+    searchInput?.addEventListener('input', (e) => {
+        const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
+        let totalVisible = 0;
+
+        sections.forEach(section => {
+            const cardsInSection = section.querySelectorAll('.guide-card');
+            let visibleInThisSection = 0;
+
+            cardsInSection.forEach(card => {
+                const title = card.getAttribute('data-title') || '';
+                const desc = card.getAttribute('data-desc') || '';
+
+                if (title.includes(query) || desc.includes(query)) {
+                    (card as HTMLElement).style.display = 'block';
+                    visibleInThisSection++;
+                    totalVisible++;
+                } else {
+                    (card as HTMLElement).style.display = 'none';
+                }
+            });
+
+            // Ocultar sección completa si no hay guías visibles dentro
+            if (visibleInThisSection === 0) {
+                (section as HTMLElement).style.display = 'none';
+            } else {
+                (section as HTMLElement).style.display = 'block';
+            }
+        });
+
+        // Mostrar mensaje si no hay nada en toda la página
+        if (totalVisible === 0) {
+            noResults?.classList.remove('hidden');
+        } else {
+            noResults?.classList.add('hidden');
+        }
+    });
+</script>

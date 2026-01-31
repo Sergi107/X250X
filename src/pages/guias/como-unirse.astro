@@ -1,0 +1,121 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { ChevronLeft } from 'lucide-react';
+---
+
+<Layout title="Cómo Unirse a PMC250 - Guía Oficial">
+    
+    <div class="fixed inset-0 z-0">
+        <img src="/bg2.png" alt="Fondo Táctico" class="w-full h-full object-cover opacity-30" />
+        <div class="absolute inset-0 bg-pmc-950/90"></div>
+    </div>
+
+    <div class="relative z-10 pt-32 pb-20">
+        <div class="container mx-auto px-6 max-w-4xl">
+            
+            <a href="/guias" class="inline-flex items-center gap-2 text-gray-400 hover:text-pmc-accent mb-8 transition-colors text-sm font-mono uppercase tracking-widest">
+                <ChevronLeft size={16} /> Volver al Centro de Doctrina
+            </a>
+
+            <header class="mb-12 border-b border-white/10 pb-10">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="px-3 py-1 bg-orange-500/20 text-orange-400 text-xs font-bold uppercase tracking-widest rounded border border-orange-500/30">
+                        Nivel 1: Novato
+                    </span>
+                    <span class="text-gray-500 text-xs font-mono">Actualizado: ENE 2026</span>
+                </div>
+                
+                <h1 class="text-4xl md:text-5xl font-black text-white uppercase mb-6 leading-tight">
+                    Cómo Unirse a <span class="text-pmc-accent">PMC250</span>
+                </h1>
+                
+                <p class="text-xl text-gray-300 leading-relaxed">
+                    Guía paso a paso para completar tu proceso de alistamiento, realizar la entrevista y desplegarte en tu primera operación.
+                </p>
+            </header>
+
+            <article class="text-gray-300">
+                
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    1. Requisitos Previos
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    Antes de iniciar el proceso, asegúrate de cumplir con los requisitos fundamentales de la unidad:
+                </p>
+                
+                <ul class="mb-8 pl-6 space-y-3 list-disc marker:text-pmc-accent">
+                    <li><strong class="text-white font-bold">Copia legal de Arma 3:</strong> No damos soporte a versiones pirata.</li>
+                    <li><strong class="text-white font-bold">Edad mínima:</strong> Debes ser mayor de edad (+18). Valoramos la madurez por encima de la habilidad.</li>
+                    <li><strong class="text-white font-bold">Periféricos:</strong> Micrófono funcional y auriculares (los altavoces generan eco y rompen la inmersión).</li>
+                </ul>
+
+                <hr class="border-white/10 my-10" />
+
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    2. Acceso al Discord
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    Toda nuestra actividad se organiza a través de Discord. Es nuestro centro de mando (HQ).
+                </p>
+                
+                <div class="bg-pmc-900/50 border-l-4 border-pmc-accent p-6 my-6">
+                    <p class="text-white font-bold mb-2">⚠ Importante</p>
+                    <p class="text-sm m-0">Al entrar, solo verás lo necesario para empezar el proceso de reclutamiento, una vez completado, se te asignará el rango <strong>Recluta</strong>.</p>
+                </div>
+
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    3. Solicitud de Entrevista
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    Una vez dentro del Discord, sigue estos pasos:
+                </p>
+                
+                <ol class="mb-8 pl-6 space-y-3 list-decimal marker:text-pmc-accent marker:font-bold">
+                    <li>Ve al canal de texto <code class="bg-black/50 px-2 py-1 rounded text-pmc-accent font-mono text-sm border border-white/10">#tickets</code>.</li>
+                    <li>Lee las normas.</li>
+                    <li>Rellena el formulario y una vez abierto el ticket, preséntate, enseguida te atenderán.</li>
+                    <li>Un <strong class="text-white font-bold">Instructor</strong> o <strong class="text-white font-bold">Staff</strong> te contactará para concertar una instrucción.</li>
+                </ol>
+
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    4. La Instrucción
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    No es un examen. Es una charla informal para conocernos, explicarte cómo funcionamos (Doctrina, mods, horarios) y configurar tu setup.
+                </p>
+                <p class="mb-6 leading-relaxed text-lg">Si todo va bien, recibirás:</p>
+                <ul class="mb-8 pl-6 space-y-3 list-disc marker:text-pmc-accent">
+                    <li>Acceso al repositorio de mods.</li>
+                    <li>IP y contraseña del servidor.</li>
+                    <li>Tags de recluta en Discord.</li>
+                </ul>
+
+                <h3 class="text-2xl font-bold text-white mt-12 mb-6 uppercase tracking-wide border-b border-white/10 pb-2">
+                    5. Tu Primera Misión
+                </h3>
+                
+                <p class="mb-6 leading-relaxed text-lg">
+                    Como recluta, tus primeras misiones serán bajo la supervisión de un tutor que te guiará.
+                </p>
+
+            </article>
+
+            <div class="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="text-gray-500 text-sm font-mono">
+                    ID Documento: RECL-001
+                </div>
+                <div class="flex gap-4">
+                    <a href="/guias/descarga-ts3" class="px-6 py-3 bg-pmc-accent text-pmc-950 font-bold uppercase tracking-widest hover:bg-white transition-colors text-xs">
+                        Siguiente Guía
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</Layout>

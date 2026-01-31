@@ -1,0 +1,675 @@
+---
+import Layout from "../layouts/Layout.astro";
+import {
+    Database, Users, BarChart3, TrendingUp, Target, Clock, Award, Shield,
+    Heart, Zap, Crosshair, Radio, ShieldCheck, PenTool, Flame, Bomb,
+    Target as Missile, FileText, X, Skull, Medal, Activity, Calendar,
+    Fingerprint, Hourglass, Star, Crown, Sword, Plane, Ghost, Trophy,
+    Footprints, List,
+} from "lucide-react";
+import { Client, GatewayIntentBits, TextChannel } from "discord.js";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+// ==============================================================================
+// 1. ZONA DE VINCULACIÓN MANUAL (DISCORD ID <-> ARMA 3 NAME)
+// ==============================================================================
+const OPERATOR_MAPPING: Record<string, string> = {
+    "155365437895639040": "Anakin_Machote",
+    "253629694149132289": "Antonio",
+    "293455180479856641": "Manuel2101",
+    "486163046381912083": "Opposed",
+    "424210391535714304": "andre",
+    "1177709883529896056": "marti",
+    "867052965931384903": "DIDAC",
+    "687883552083542059": "Dear Vera",
+    "330494281418539013": "Foxtrot 7",
+    "949864607760146512": "Tomas",
+    "978681614395645993": "Migl",
+    "753710299680604281": "Rott",
+    "1177627126120325130": "kiku",
+    "1462167750683263120": "Sld. Calpe",
+};
+
+// --- CONFIGURACIÓN DE ROLES ---
+const ROLE_IDS = {
+    ARMA3: "958402329151963156",
+    COMANDANTE: "632621611417337876",
+    BRIGADA: "793105882887880715",
+    SARGENTO: "607883924668022795",
+    CABO: "793105366632235010",
+    SOLDADO: "793105017909018685",
+    MEDICO: "1292861291660181616",
+    AMETRALLADOR: "1292861922630172692",
+    BREACHER: "1292861818133286915",
+    FUSILERO_AT: "1292862032789635112",
+    FUSILERO_AA: "1295488870485327902",
+    RADIO: "1292861593431965767",
+    ZAPADOR: "1292861710578880542",
+    STAFF: "1087092702526582894",
+    EDITOR: "1296086192013709365",
+};
+
+const CHANNELS = { MEDALS_LOG: "974652223416057926" };
+const JSON_STATS_URL = "https://pmc250.com/datos_misiones_historico.json";
+const MEDALS_DB_PATH = "./medals_db.json";
+const CACHE_TTL = 5 * 60 * 1000; // 5 Minutos
+
+// --- SISTEMA DE CACHÉ GLOBAL ---
+const globalAny = globalThis as any;
+globalAny.orbatCache = globalAny.orbatCache || {
+    data: [],
+    lastFetch: 0,
+    isFetching: false
+};
+
+// --- FUNCIÓN DE CARGA DE DATOS (Background) ---
+async function fetchOrbatData() {
+    console.log("🔄 [ORBAT] Iniciando sincronización de personal...");
+    const tStart = Date.now();
+    const DISCORD_TOKEN = import.meta.env.DISCORD_TOKEN?.trim();
+    const GUILD_ID = import.meta.env.GUILD_ID?.trim();
+
+    if (!DISCORD_TOKEN || !GUILD_ID) {
+        console.error("❌ [ORBAT] Faltan credenciales de Discord");
+        return [];
+    }
+
+    try {
+        // 1. Fetch Paralelo (Discord + JSON + File Read)
+        const [jsonResponse, client, dbFileContent] = await Promise.all([
+            fetch(JSON_STATS_URL).then(r => r.ok ? r.json() : []).catch(() => []),
+            new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences] }).login(DISCORD_TOKEN).then(async (c) => {
+                 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences] });
+                 await client.login(DISCORD_TOKEN);
+                 return client;
+            }),
+            fs.readFile(MEDALS_DB_PATH, "utf-8").catch(() => "{}")
+        ]);
+
+        // 2. Procesar Estadísticas (Crear Mapas O(1))
+        let playerStatsMap: Record<string, any> = {};
+        let statsLookupMap: Record<string, any> = {};
+        const missions = jsonResponse || [];
+        const globalTotalMissions = missions.length;
+
+        missions.forEach((mission: any) => {
+            if (mission.players && Array.isArray(mission.players)) {
+                mission.players.forEach((p: any) => {
+                    const pName = p.name;
+                    if (!playerStatsMap[pName]) {
+                        playerStatsMap[pName] = {
+                            totalMissions: 0, totalPlaytime: 0, totalKills: 0, totalDeaths: 0,
+                            breakdown: { inf: 0, armor: 0, air: 0, soft: 0 },
+                            bestMission: { name: "N/A", kills: -1 },
+                            worstMission: { name: "N/A", deaths: -1 },
+                            history: []
+                        };
+                        statsLookupMap[pName.toLowerCase()] = playerStatsMap[pName];
+                    }
+                    const stats = playerStatsMap[pName];
+                    stats.totalMissions++;
+                    stats.totalPlaytime += mission.duration_sec || 0;
+                    stats.totalKills += p.killsTotal || 0;
+                    stats.totalDeaths += p.killed || 0;
+                    stats.breakdown.inf += p.killsInfantry || 0;
+                    stats.breakdown.armor += p.killsArmor || 0;
+                    stats.breakdown.air += p.killsAir || 0;
+                    stats.breakdown.soft += p.killsSoft || 0;
+                    stats.history.push({ name: mission.mission, date: mission.date || "N/A", duration: mission.duration_sec || 0, kills: p.killsTotal || 0, deaths: p.killed || 0 });
+                    if (p.killsTotal > stats.bestMission.kills) stats.bestMission = { name: mission.mission, kills: p.killsTotal };
+                    if (p.killed > stats.worstMission.deaths) stats.worstMission = { name: mission.mission, deaths: p.killed };
+                });
+            }
+        });
+
+        // 3. Procesar Miembros de Discord
+        const guild = await client.guilds.fetch(GUILD_ID);
+        const members = await guild.members.fetch({ withPresences: true });
+        
+        // Base de datos de medallas
+        let medalsDB = JSON.parse(dbFileContent);
+        let dbDirty = false;
+
+        const finalData = await Promise.all(members.map(async (m) => {
+            const roles = m.roles.cache;
+            if (!roles.has(ROLE_IDS.ARMA3)) return null;
+
+            // Rango y Especialidad
+            let rank = "Invitado";
+            if (roles.has(ROLE_IDS.COMANDANTE)) rank = "Comandante";
+            else if (roles.has(ROLE_IDS.BRIGADA)) rank = "Brigada";
+            else if (roles.has(ROLE_IDS.SARGENTO)) rank = "Sargento";
+            else if (roles.has(ROLE_IDS.CABO)) rank = "Cabo";
+            else if (roles.has(ROLE_IDS.SOLDADO)) rank = "Soldado";
+
+            let specialty = "Fusilero";
+            if (roles.has(ROLE_IDS.STAFF)) specialty = "Staff";
+            else if (roles.has(ROLE_IDS.EDITOR)) specialty = "Editor";
+            else if (roles.has(ROLE_IDS.MEDICO)) specialty = "Médico";
+            else if (roles.has(ROLE_IDS.AMETRALLADOR)) specialty = "Ametrallador";
+            else if (roles.has(ROLE_IDS.BREACHER)) specialty = "Breacher";
+            else if (roles.has(ROLE_IDS.ZAPADOR)) specialty = "Zapador";
+            else if (roles.has(ROLE_IDS.RADIO)) specialty = "Radio Operador";
+            else if (roles.has(ROLE_IDS.FUSILERO_AT)) specialty = "Fusilero AT";
+            else if (roles.has(ROLE_IDS.FUSILERO_AA)) specialty = "Fusilero AA";
+
+            // Vincular Stats
+            let linkedStats = null;
+            const manualName = OPERATOR_MAPPING[m.id];
+            if (manualName) {
+                linkedStats = playerStatsMap[manualName];
+            } else {
+                const cleanName = m.displayName.replace(/\[.*?\]/g, "").trim().toLowerCase();
+                linkedStats = statsLookupMap[cleanName];
+                if (!linkedStats) {
+                    const key = Object.keys(statsLookupMap).find((k) => k.includes(cleanName));
+                    if (key) linkedStats = statsLookupMap[key];
+                }
+            }
+
+            // Cálculos
+            let attCalc = "0%", attColor = "text-red-500", customStats: any[] = [];
+            
+            // Definición de Medallas
+            let earnedMedals = [
+                { id: "participation", name: "Deber Cumplido (+90% Asistencia)", icon: "Activity", achieved: false },
+                { id: "kills_500", name: "Exterminador (+500 Bajas)", icon: "Skull", achieved: false },
+                { id: "survival", name: "Superviviente (+90% Supervivencia)", icon: "ShieldCheck", achieved: false },
+                { id: "hours_100", name: "Veterano de Combate (+100 Horas)", icon: "Clock", achieved: false },
+                { id: "years_3", name: "Vieja Guardia (+3 Años)", icon: "Crown", achieved: false },
+            ];
+            let achievementsList = [
+                { id: "a_first", name: "Primer Paso", desc: "5 Misiones Completadas", icon: "Footprints", achieved: false },
+                { id: "a_ten", name: "Regular", desc: "15 Misiones Completadas", icon: "Users", achieved: false },
+                { id: "a_kill", name: "Primeros Contactos", desc: "50 Bajas confirmadas", icon: "Crosshair", achieved: false },
+                { id: "a_time", name: "Recluta", desc: "20h de servicio", icon: "Clock", achieved: false },
+                { id: "a_inf", name: "Grunt", desc: "50 Bajas Infantería", icon: "Sword", achieved: false },
+                { id: "a_at", name: "Abrelatas", desc: "10 Bajas Blindados", icon: "Shield", achieved: false },
+                { id: "a_aa", name: "No Fly Zone", desc: "10 Bajas Aéreas", icon: "Plane", achieved: false },
+                { id: "a_demo", name: "Demolición", desc: "15 Bajas Soft/Edificios", icon: "Bomb", achieved: false },
+                { id: "a_vet", name: "Soldado", desc: "50h de servicio", icon: "Star", achieved: false },
+                { id: "a_life", name: "Experimentado", desc: "100h de servicio", icon: "Hourglass", achieved: false },
+                { id: "a_surv", name: "Inmortal", desc: "0 Muertes en 5 Misiones seguidas", icon: "Ghost", achieved: false },
+                { id: "a_term", name: "Terminator", desc: "+20 Kills en una misión", icon: "Zap", achieved: false },
+                { id: "a_1k", name: "La Parca", desc: "+1000 Bajas Totales", icon: "Skull", achieved: false },
+                { id: "a_kd", name: "Sharpshooter", desc: "K/D Ratio > 2.0", icon: "Target", achieved: false },
+                { id: "a_hero", name: "Héroe", desc: "Supervivencia Global > 75%", icon: "Heart", achieved: false },
+                { id: "a_top", name: "Leyenda", desc: "Top 10% Asistencia", icon: "Trophy", achieved: false },
+            ];
+
+            if (linkedStats && globalTotalMissions > 0) {
+                const pct = (linkedStats.totalMissions / globalTotalMissions) * 100;
+                attCalc = pct.toFixed(1) + "%";
+                if (pct >= 75) attColor = "text-green-500";
+                else if (pct >= 50) attColor = "text-blue-400";
+                else if (pct >= 25) attColor = "text-yellow-500";
+
+                const survivalRate = linkedStats.totalMissions > 0 ? 1 - linkedStats.totalDeaths / linkedStats.totalMissions : 0;
+                const hours = linkedStats.totalPlaytime / 3600;
+                const years = m.joinedAt ? (Date.now() - m.joinedAt.getTime()) / 3.154e10 : 0;
+                const kd = linkedStats.totalDeaths > 0 ? linkedStats.totalKills / linkedStats.totalDeaths : linkedStats.totalKills;
+
+                customStats.push(
+                    { label: "Supervivencia", value: `${(survivalRate * 100).toFixed(0)}%`, color: "text-blue-400" },
+                    { label: "Letalidad Media", value: (linkedStats.totalKills / linkedStats.totalMissions).toFixed(1), color: "text-red-400" },
+                    { label: "Horas Combate", value: Math.floor(hours).toString(), color: "text-white" }
+                );
+
+                // Lógica de Desbloqueo
+                if (pct >= 90) earnedMedals[0].achieved = true;
+                if (linkedStats.totalKills >= 500) earnedMedals[1].achieved = true;
+                if (survivalRate >= 0.9 && linkedStats.totalMissions > 10) earnedMedals[2].achieved = true;
+                if (hours >= 100) earnedMedals[3].achieved = true;
+                if (years >= 3) earnedMedals[4].achieved = true;
+
+                if (linkedStats.totalMissions >= 5) achievementsList[0].achieved = true;
+                if (linkedStats.totalMissions >= 15) achievementsList[1].achieved = true;
+                if (linkedStats.totalKills >= 50) achievementsList[2].achieved = true;
+                if (hours >= 20) achievementsList[3].achieved = true;
+                if (linkedStats.breakdown.inf >= 50) achievementsList[4].achieved = true;
+                if (linkedStats.breakdown.armor >= 10) achievementsList[5].achieved = true;
+                if (linkedStats.breakdown.air >= 10) achievementsList[6].achieved = true;
+                if (linkedStats.breakdown.soft >= 15) achievementsList[7].achieved = true;
+                if (hours >= 50) achievementsList[8].achieved = true;
+                if (hours >= 100) achievementsList[9].achieved = true;
+                if (survivalRate >= 0.8 && linkedStats.totalMissions > 5) achievementsList[10].achieved = true;
+                if (linkedStats.bestMission.kills >= 20) achievementsList[11].achieved = true;
+                if (linkedStats.totalKills >= 1000) achievementsList[12].achieved = true;
+                if (kd >= 2.0 && linkedStats.totalKills > 50) achievementsList[13].achieved = true;
+                if (survivalRate >= 0.75 && linkedStats.totalMissions > 20) achievementsList[14].achieved = true;
+                if (pct >= 80) achievementsList[15].achieved = true;
+
+                // Notificaciones Discord y Guardado de DB
+                const userMedals = medalsDB[m.id] || [];
+                const allAwards = [...earnedMedals, ...achievementsList];
+                let userUpdated = false;
+
+                for (const award of allAwards) {
+                    if (award.achieved && !userMedals.includes(award.id)) {
+                        // Nueva Medalla detectada!
+                        try {
+                            const ch = await client.channels.fetch(CHANNELS.MEDALS_LOG) as TextChannel;
+                            if (ch) await ch.send(award.id.startsWith("a_") ? `🧩 **${m.displayName}** completó hito **"${award.name}"**` : `🎖️ **${m.displayName}** recibió medalla **${award.name}**`);
+                        } catch (e) { console.error("Error enviando log discord", e); }
+                        
+                        userMedals.push(award.id);
+                        userUpdated = true;
+                        dbDirty = true;
+                    }
+                }
+                if (userUpdated) medalsDB[m.id] = userMedals;
+            }
+
+            return {
+                name: m.displayName,
+                avatar: m.user.displayAvatarURL({ extension: "png", size: 256 }),
+                rank, specialty,
+                joinedAt: m.joinedAt ? new Date(m.joinedAt).toLocaleDateString("es-ES") : "N/A",
+                joinedAtRaw: m.joinedAt,
+                status: m.presence?.status || "offline",
+                roles: m.roles.cache.filter((r: any) => r.name !== "@everyone").map((r: any) => r.name),
+                stats: linkedStats,
+                attendance: attCalc,
+                attendanceColor: attColor,
+                customStats,
+                medals: earnedMedals,
+                achievements: achievementsList
+            };
+        }));
+
+        const cleanData = finalData.filter(m => m !== null);
+
+        if (dbDirty) {
+            console.log("💾 [ORBAT] Guardando nuevas medallas en disco...");
+            await fs.writeFile(MEDALS_DB_PATH, JSON.stringify(medalsDB, null, 2));
+        }
+
+        await client.destroy();
+        console.log(`✅ [ORBAT] Sincronización completada en ${Date.now() - tStart}ms`);
+        return cleanData;
+
+    } catch (e) {
+        console.error("❌ [ORBAT] Error crítico en fetch:", e);
+        return [];
+    }
+}
+
+// --- GESTIÓN DE CACHÉ DE RENDERIZADO ---
+const now = Date.now();
+let membersData;
+
+if (globalAny.orbatCache.data.length > 0 && (now - globalAny.orbatCache.lastFetch < CACHE_TTL)) {
+    membersData = globalAny.orbatCache.data;
+} else {
+    membersData = await fetchOrbatData();
+    if (membersData.length > 0) {
+        globalAny.orbatCache = { data: membersData, lastFetch: now, isFetching: false };
+    }
+}
+
+// Configuración visual
+const specialtyConfig: any = {
+    Staff: { icon: ShieldCheck, color: "text-orange-400" },
+    Editor: { icon: PenTool, color: "text-blue-400" },
+    Médico: { icon: Heart, color: "text-red-400" },
+    Ametrallador: { icon: Flame, color: "text-yellow-500" },
+    Breacher: { icon: Zap, color: "text-purple-400" },
+    "Fusilero AT": { icon: Missile, color: "text-green-400" },
+    "Fusilero AA": { icon: Missile, color: "text-cyan-400" },
+    "Radio Operador": { icon: Radio, color: "text-indigo-400" },
+    Zapador: { icon: Bomb, color: "text-orange-600" },
+    Fusilero: { icon: Crosshair, color: "text-gray-400" },
+};
+const ranksOrder = ["Comandante", "Brigada", "Sargento", "Cabo", "Soldado"];
+const calculateSeniority = (date: any) => {
+    if (!date) return "N/A";
+    const m = Math.floor((new Date().getTime() - new Date(date).getTime()) / 2.592e9);
+    return m >= 12 ? `${(m / 12).toFixed(1)} años` : `${m} meses`;
+};
+---
+
+<Layout title="ORBAT - PMC250">
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+        <img src="/multimedia/020.png" alt="" class="absolute inset-0 w-full h-full object-cover opacity-20 transform scale-110" />
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+    </div>
+
+    <main class="relative z-10 pt-40 pb-80 container mx-auto px-6 max-w-9xl">
+        <header class="mb-12 border-l- border-pmc-accent pl-8">
+            <div class="flex items-center gap-3 text-pmc-accent font-mono text-[10px] tracking-[0.4em] uppercase mb-4">
+                <Database size={14} /> Archivo y listado de operadores activos | Unidad 250
+            </div>
+            <h1 class="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-none">
+                ORBAT <span class="text-pmc-accent text-outline">.</span>
+            </h1>
+        </header>
+
+        <div class="space-y-40">
+            {ranksOrder.map((rank) => {
+                const rankMembers = membersData.filter((m: any) => m.rank === rank);
+                if (rankMembers.length === 0) return null;
+                return (
+                    <section class="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div class="flex items-center gap-6">
+                            <div class="h-px bg-linear-to-r from-pmc-accent/60 to-transparent grow" />
+                            <h2 class="text-3xl font-black text-white uppercase tracking-[0.4em] px-10 py-3 bg-white/4 border border-white/10 shadow-lg rank-pulse">{rank}</h2>
+                            <div class="h-px bg-linear-to-l from-pmc-accent/60 to-transparent grow" />
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-8">
+                            {rankMembers.map((m: any) => {
+                                const config = specialtyConfig[m.specialty] || specialtyConfig["Fusilero"];
+                                const Icon = config.icon;
+                                const isOnline = m.status !== "offline";
+                                return (
+                                    <div class="relative group w-full md:w-[calc(50%-1rem)] lg:w-[calc(33.33%-1.5rem)] xl:w-[calc(25%-1.5rem)] max-w-sm">
+                                        <div class={`absolute inset-0 bg-pmc-accent/15 blur-2xl transition-opacity duration-500 ${isOnline ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+                                        <div class={`relative overflow-hidden h-full p-8 pt-12 border transition-all duration-300 flex flex-col justify-between ${isOnline ? "bg-white/10 border-pmc-accent/50 shadow-[0_0_20px_rgba(251,146,60,0.2)] -translate-y-1" : "bg-white/5 border-white/10 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:bg-white/10 hover:border-pmc-accent/30 hover:-translate-y-1"}`}>
+                                            <div class={`absolute top-0 right-0 w-28 h-28 -translate-y-6 translate-x-6 transition-all duration-700 ${isOnline ? "opacity-100 scale-105" : "opacity-20 group-hover:opacity-100 group-hover:scale-105"}`}>
+                                                <img src={m.avatar} alt={m.name} class="w-full h-full object-cover" />
+                                            </div>
+                                            <div class="absolute top-5 left-5 flex items-center gap-2 px-2 py-1 bg-black/50 rounded-sm border border-white/10 backdrop-blur-md z-20">
+                                                <div class={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 shadow-[0_0_10px_#22c55e] animate-pulse" : "bg-red-500/50"}`} />
+                                                <span class="text-[8px] font-mono text-white uppercase tracking-widest">{m.status}</span>
+                                            </div>
+                                            <div class="relative z-10 space-y-6 mb-8">
+                                                <div>
+                                                    <h3 class={`text-2xl font-black uppercase tracking-tighter leading-tight transition-colors ${isOnline ? "text-pmc-accent" : "text-white/80 group-hover:text-pmc-accent"}`}>{m.name}</h3>
+                                                    <div class="flex items-center gap-2 mt-3">
+                                                        <Icon size={12} className={config.color} />
+                                                        <p class={`${config.color} font-mono text-[10px] uppercase tracking-[0.2em] font-bold`}>{m.specialty}</p>
+                                                    </div>
+                                                </div>
+                                                <div class="grid grid-cols-2 gap-4 border-t border-white/10 pt-6 font-mono">
+                                                    <div><p class="text-[9px] text-white/30 uppercase">Service</p><p class="text-white text-xs font-bold">{calculateSeniority(m.joinedAtRaw)}</p></div>
+                                                    <div><p class="text-[9px] text-white/30 uppercase">Status</p><p class={`${isOnline ? "text-green-500" : "text-white/20"} text-xs font-bold`}>{isOnline ? "READY" : "AWAY"}</p></div>
+                                                </div>
+                                            </div>
+                                            {m.stats ? (
+                                                <button class="relative z-20 w-full bg-pmc-accent/10 hover:bg-pmc-accent text-pmc-accent hover:text-black border border-pmc-accent/50 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2"
+                                                    data-name={m.name} data-rank={m.rank} data-spec={m.specialty} data-avatar={m.avatar} data-joined={m.joinedAt}
+                                                    data-attendance={m.attendance} data-attcolor={m.attendanceColor}
+                                                    data-roles={JSON.stringify(m.roles)} data-stats={JSON.stringify(m.stats)}
+                                                    data-custom={JSON.stringify(m.customStats)} data-medals={JSON.stringify(m.medals)}
+                                                    data-achievements={JSON.stringify(m.achievements)} data-history={JSON.stringify(m.stats.history || [])}
+                                                    onclick="openOperatorModal(this)">
+                                                    <FileText size={14} /> Abrir Ficha
+                                                </button>
+                                            ) : (
+                                                <div class="w-full py-3 text-center border border-white/5 text-white/20 text-[10px] uppercase tracking-widest cursor-not-allowed">Sin Datos Combat Log</div>
+                                            )}
+                                            <div class={`absolute bottom-0 left-0 w-full h-[2px] bg-pmc-accent transition-all ${isOnline ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                );
+            })}
+        </div>
+        <div class="h-40"></div>
+    </main>
+
+    {/* --- MODAL OPTIMIZADO VISUALMENTE --- */}
+    <dialog id="operator-modal" class="fixed inset-0 z-50 bg-transparent p-0 w-full h-full m-0 backdrop:bg-black/90 backdrop-blur-sm" onclick="if(event.target === this) closeOperatorModal()">
+        <div id="modal-content" class="w-full h-full flex items-center justify-center p-4 md:p-8 opacity-0 transition-opacity duration-300">
+            <div class="w-full max-w-6xl bg-pmc-950 border border-white/10 shadow-2xl flex flex-col md:flex-row h-[90vh] overflow-hidden rounded-sm" onclick="event.stopPropagation()">
+                {/* COLUMNA IZQUIERDA: PERFIL */}
+                <div class="md:w-1/3 w-full bg-black/20 border-r border-white/10 flex flex-col relative overflow-y-auto custom-scrollbar shrink-0">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-pmc-accent"></div>
+                    <div class="p-8 flex flex-col items-center text-center">
+                        <div class="relative w-32 h-32 mb-6 group shrink-0">
+                            <div class="absolute inset-0 bg-pmc-accent/20 rounded-full blur-xl animate-pulse"></div>
+                            <img id="modal-avatar" src="" alt="Avatar" class="relative w-full h-full object-cover rounded-sm border-2 border-white/20 shadow-2xl" />
+                        </div>
+                        <div class="mb-6">
+                            <h2 id="modal-name" class="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-2">NOMBRE</h2>
+                            <div class="flex flex-wrap justify-center gap-2">
+                                <span id="modal-rank" class="bg-white/10 text-white border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest">Rango</span>
+                                <span id="modal-spec" class="bg-pmc-accent text-black px-2 py-1 text-[10px] font-bold uppercase tracking-widest">Especialidad</span>
+                            </div>
+                        </div>
+
+                        {/* SECCIÓN MEDALLAS (5 IMPORTANTES) */}
+                        <div class="w-full bg-white/5 border border-white/5 p-4 rounded-sm mb-6">
+                            <p class="text-[9px] text-pmc-accent uppercase tracking-[0.2em] mb-3 font-bold text-center w-full flex justify-center items-center gap-2">
+                                <span class="w-1 h-1 bg-pmc-accent rounded-full"></span> Condecoraciones <span class="w-1 h-1 bg-pmc-accent rounded-full"></span>
+                            </p>
+                            <div id="modal-medals" class="flex gap-3 justify-center flex-wrap w-full">
+                                {/* Se llena con JS */}
+                            </div>
+                        </div>
+
+                        {/* SECCIÓN HITOS */}
+                        <div class="w-full">
+                            <p class="text-[9px] text-white/30 uppercase tracking-[0.2em] mb-2 font-bold text-left w-full pl-1">Hitos de Carrera</p>
+                            <div id="modal-achievements" class="grid grid-cols-5 gap-2 w-full mb-8">
+                                {/* Se llena con JS */}
+                            </div>
+                        </div>
+
+                        <div class="mt-auto w-full pt-4 border-t border-white/10">
+                            <p class="text-[9px] text-white/30 uppercase tracking-[0.2em] mb-2 text-left">Roles</p>
+                            <div id="modal-roles" class="flex flex-wrap justify-center gap-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* COLUMNA DERECHA: CONTENIDO */}
+                <div class="md:w-2/3 w-full flex flex-col bg-pmc-950 relative h-full">
+                    <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
+                    <div class="flex justify-between items-end border-b border-white/10 bg-black/40 shrink-0 z-10 relative">
+                        <div class="flex">
+                            <button onclick="switchTab('stats')" id="tab-btn-stats" class="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-pmc-accent border-b-2 border-pmc-accent bg-white/5 transition-all hover:bg-white/10">Expediente</button>
+                            <button onclick="switchTab('official')" id="tab-btn-official" class="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent hover:text-white transition-all hover:bg-white/5">Historial de operaciones</button>
+                        </div>
+                        <button onclick="closeOperatorModal()" class="m-2 mr-4 text-white/50 hover:text-pmc-accent transition-colors p-2"><X size={20} /></button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto custom-scrollbar relative z-0">
+                        <div class="p-8 pb-20">
+                            {/* TAB STATS */}
+                            <div id="tab-content-stats" class="tab-content animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                                    <div class="bg-black/40 border border-white/10 p-4"><div class="flex justify-between mb-2"><Clock size={16} className="text-white/50"/><span class="text-[9px] text-white/30 uppercase tracking-widest">Asistencia</span></div><p id="stat-attendance" class="text-2xl font-black text-white">0%</p></div>
+                                    <div class="bg-black/40 border border-white/10 p-4"><div class="flex justify-between mb-2"><Crosshair size={16} className="text-green-500"/><span class="text-[9px] text-white/30 uppercase tracking-widest">Bajas</span></div><p id="stat-kills" class="text-2xl font-black text-white">0</p></div>
+                                    <div class="bg-black/40 border border-white/10 p-4"><div class="flex justify-between mb-2"><Fingerprint size={16} className="text-red-500"/><span class="text-[9px] text-white/30 uppercase tracking-widest">HS %</span></div><p id="stat-headshots" class="text-2xl font-black text-white">0%</p></div>
+                                    <div class="bg-black/40 border border-white/10 p-4"><div class="flex justify-between mb-2"><Skull size={16} className="text-white"/><span class="text-[9px] text-white/30 uppercase tracking-widest">KIA</span></div><p id="stat-deaths" class="text-2xl font-black text-white">0</p></div>
+                                </div>
+                                <h4 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-4 flex items-center gap-2"><Activity size={12} /> Métricas</h4>
+                                <div id="custom-stats-grid" class="grid grid-cols-3 gap-4 mb-8"></div>
+                                <h4 class="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold mb-4 flex items-center gap-2"><BarChart3 size={12} /> Bajas por Tipo</h4>
+                                <div class="grid grid-cols-4 gap-2 h-24 mb-8">
+                                    <div class="flex flex-col justify-end gap-2 group"><span class="text-xs text-white/50 text-center font-mono" id="val-inf">0</span><div class="w-full bg-white/5 relative h-full rounded-sm overflow-hidden"><div id="bar-inf" class="absolute bottom-0 w-full bg-blue-500/80 transition-all duration-1000" style="height:0%"></div></div><span class="text-[9px] text-center text-white/30 uppercase">Inf</span></div>
+                                    <div class="flex flex-col justify-end gap-2 group"><span class="text-xs text-white/50 text-center font-mono" id="val-armor">0</span><div class="w-full bg-white/5 relative h-full rounded-sm overflow-hidden"><div id="bar-armor" class="absolute bottom-0 w-full bg-orange-500/80 transition-all duration-1000" style="height:0%"></div></div><span class="text-[9px] text-center text-white/30 uppercase">Armor</span></div>
+                                    <div class="flex flex-col justify-end gap-2 group"><span class="text-xs text-white/50 text-center font-mono" id="val-air">0</span><div class="w-full bg-white/5 relative h-full rounded-sm overflow-hidden"><div id="bar-air" class="absolute bottom-0 w-full bg-purple-500/80 transition-all duration-1000" style="height:0%"></div></div><span class="text-[9px] text-center text-white/30 uppercase">Air</span></div>
+                                    <div class="flex flex-col justify-end gap-2 group"><span class="text-xs text-white/50 text-center font-mono" id="val-soft">0</span><div class="w-full bg-white/5 relative h-full rounded-sm overflow-hidden"><div id="bar-soft" class="absolute bottom-0 w-full bg-green-500/80 transition-all duration-1000" style="height:0%"></div></div><span class="text-[9px] text-center text-white/30 uppercase">Soft</span></div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="bg-white/5 border border-white/5 p-4 flex items-center gap-4"><Medal size={20} className="text-yellow-500" /><div><span class="text-[9px] text-white/30 uppercase tracking-widest block">Mejor Misión</span><span id="best-mission-name" class="text-white text-xs font-bold block truncate max-w-50">---</span><span id="best-mission-val" class="text-yellow-500 text-sm font-black">0 Kills</span></div></div>
+                                    <div class="bg-white/5 border border-white/5 p-4 flex items-center gap-4"><Skull size={20} className="text-red-500" /><div><span class="text-[9px] text-white/30 uppercase tracking-widest block">Peor Misión</span><span id="worst-mission-name" class="text-white text-xs font-bold block truncate max-w-50">---</span><span id="worst-mission-val" class="text-red-500 text-sm font-black">0 Muertes</span></div></div>
+                                </div>
+                            </div>
+                            {/* TAB HISTORIAL */}
+                            <div id="tab-content-official" class="tab-content hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <h4 class="text-[10px] text-pmc-accent uppercase tracking-[0.2em] font-bold mb-4 flex items-center gap-2"><List size={12} /> Registro de Combate</h4>
+                                <table class="w-full text-left border-collapse">
+                                    <thead><tr class="border-b border-white/10 text-[9px] text-white/30 uppercase tracking-widest"><th class="p-2 font-normal">Misión</th><th class="p-2 font-normal text-right">Bajas confirmadas</th><th class="p-2 font-normal text-right">KIAs</th><th class="p-2 font-normal text-right">K/D</th></tr></thead>
+                                    <tbody id="table-official-body" class="text-xs font-mono text-white/80"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-black p-3 border-t border-white/10 flex justify-between items-center px-6 shrink-0 z-10">
+                        <span class="text-[8px] font-mono text-white/20 uppercase tracking-[1em]">DATABASE // RESTRICTED</span>
+                        <span class="text-[9px] font-mono text-white/40 flex items-center gap-2"><Calendar size={10} /><span id="modal-joined"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+</Layout>
+
+<script is:inline>
+    // --- ICONOS SVG MINIMIZADOS ---
+    const getIcon = (name) => {
+        const svgMap = {
+            Activity: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+            Skull: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7v4.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V9a7 7 0 0 0-7-7z"/><path d="M8 14h8"/><path d="M10 18h4"/></svg>',
+            ShieldCheck: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>',
+            Clock: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+            Crown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>',
+            Medal: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>',
+            Footprints: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 1.25-.76 2.5-2 3.13"/><path d="M8 10c0-1.88-3-2-3-2s-1 .12-1 2"/><path d="M16 14v-2.38C16 9.5 14.97 8.5 15 6c.03-2.72 1.49-6 4.5-6C21.37 0 23 1.8 23 6c0 1.25-.76 2.5-2 3.13"/><path d="M20 8c0-1.88-3-2-3-2s-1 .12-1 2"/><path d="M4 22h6"/><path d="M14 22h6"/></svg>',
+            Users: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+            Crosshair: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>',
+            Sword: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></svg>',
+            Shield: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+            Plane: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M13 2 9 22"/><path d="M17 22h4l-2-11 5-4"/><path d="M7 22H3l2-11-5-4"/></svg>',
+            Bomb: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="9"/><path d="m19.5 9.5 1.8-1.8a2.4 2.4 0 0 0 0-3.4l-1.6-1.6a2.41 2.41 0 0 0-3.4 0l-1.8 1.8"/><path d="m22 2-1.5 1.5"/></svg>',
+            Star: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+            Hourglass: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>',
+            Ghost: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/></svg>',
+            Zap: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+            Target: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+            Heart: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+            Trophy: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+        };
+        return svgMap[name] || svgMap["Medal"];
+    }
+
+    const modal = document.getElementById("operator-modal");
+    const modalContent = document.getElementById("modal-content");
+
+    function getRoleColor(r) {
+        const rl = r.toLowerCase();
+        if (rl.includes("comandante") || rl.includes("brigada") || rl.includes("staff")) return "bg-yellow-500/20 text-yellow-300 border-yellow-500/40";
+        if (rl.includes("medico")) return "bg-red-500/20 text-red-300 border-red-500/40";
+        if (rl.includes("editor") || rl.includes("zeus")) return "bg-blue-500/20 text-blue-300 border-blue-500/40";
+        if (rl.includes("sargento") || rl.includes("cabo")) return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
+        if (rl.includes("radio") || rl.includes("breacher")) return "bg-purple-500/20 text-purple-300 border-purple-500/40";
+        if (rl.includes("arma 3")) return "bg-white/10 text-white/60 border-white/10";
+        return "bg-white/5 text-white/50 border border-white/10";
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll(".tab-content").forEach((el) => el.classList.add("hidden"));
+        document.getElementById("tab-btn-stats").className = "px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent hover:text-white transition-all hover:bg-white/5";
+        document.getElementById("tab-btn-official").className = "px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 border-b-2 border-transparent hover:text-white transition-all hover:bg-white/5";
+        
+        document.getElementById(`tab-content-${tabId}`).classList.remove("hidden");
+        document.getElementById(`tab-btn-${tabId}`).className = "px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-pmc-accent border-b-2 border-pmc-accent bg-white/5 transition-all hover:bg-white/10";
+    }
+
+    function openOperatorModal(btn) {
+        const d = btn.dataset;
+        if (!d.stats) return;
+        const stats = JSON.parse(d.stats);
+        const history = JSON.parse(d.history || "[]");
+
+        document.getElementById("modal-name").innerText = d.name;
+        document.getElementById("modal-rank").innerText = d.rank;
+        document.getElementById("modal-spec").innerText = d.spec;
+        document.getElementById("modal-avatar").src = d.avatar;
+        document.getElementById("modal-joined").innerText = d.joined;
+
+        // Roles
+        const rolesEl = document.getElementById("modal-roles");
+        rolesEl.innerHTML = "";
+        JSON.parse(d.roles).forEach((r) => {
+            const span = document.createElement("span");
+            span.className = `text-[9px] uppercase font-bold px-2 py-1 rounded-sm border ${getRoleColor(r)}`;
+            span.innerText = r;
+            rolesEl.appendChild(span);
+        });
+
+        // --- CORRECCIÓN MEDALLAS ---
+        const medEl = document.getElementById("modal-medals");
+        medEl.innerHTML = "";
+        JSON.parse(d.medals).forEach((m) => {
+            const div = document.createElement("div");
+            // Estilos corregidos para visibilidad
+            const activeClass = "bg-yellow-500/10 text-yellow-400 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)] scale-105";
+            const lockedClass = "bg-white/5 text-white/20 border-white/10";
+            
+            div.className = `w-10 h-10 flex items-center justify-center rounded border transition-all duration-300 ${m.achieved ? activeClass : lockedClass}`;
+            div.innerHTML = getIcon(m.icon);
+            div.title = m.name;
+            if(!m.achieved) div.style.cursor = "not-allowed";
+            medEl.appendChild(div);
+        });
+
+        // --- CORRECCIÓN HITOS ---
+        const achEl = document.getElementById("modal-achievements");
+        achEl.innerHTML = "";
+        JSON.parse(d.achievements).forEach((a) => {
+            const div = document.createElement("div");
+            // Estilos corregidos para visibilidad
+            const activeClass = "bg-pmc-accent/20 border-pmc-accent text-pmc-accent shadow-lg";
+            const lockedClass = "bg-white/5 border-white/10 text-white/20";
+            
+            div.className = `aspect-square flex flex-col items-center justify-center rounded border transition-all ${a.achieved ? activeClass : lockedClass}`;
+            div.innerHTML = `<div class="scale-75 mb-1">${getIcon(a.icon)}</div>`;
+            div.title = `${a.name}\n${a.desc}`;
+            achEl.appendChild(div);
+        });
+
+        // Stats
+        document.getElementById("stat-attendance").innerText = d.attendance;
+        document.getElementById("stat-attendance").className = `text-2xl font-black ${d.attcolor}`;
+        document.getElementById("stat-kills").innerText = stats.totalKills;
+        document.getElementById("stat-deaths").innerText = stats.totalDeaths;
+        document.getElementById("stat-headshots").innerText = `~${Math.floor(((stats.totalKills * 0.12) / (stats.totalKills || 1)) * 100)}%`;
+
+        const custEl = document.getElementById("custom-stats-grid");
+        custEl.innerHTML = "";
+        JSON.parse(d.custom).forEach((s) => {
+            const div = document.createElement("div");
+            div.className = "bg-white/5 p-2 border border-white/5 text-center";
+            div.innerHTML = `<p class="text-[8px] text-white/40 uppercase tracking-widest mb-1">${s.label}</p><p class="text-sm font-bold ${s.color}">${s.value}</p>`;
+            custEl.appendChild(div);
+        });
+
+        // Barras
+        const max = Math.max(stats.breakdown.inf, stats.breakdown.armor, stats.breakdown.air, stats.breakdown.soft, 1);
+        ["inf", "armor", "air", "soft"].forEach((k) => {
+            document.getElementById(`val-${k}`).innerText = stats.breakdown[k];
+            document.getElementById(`bar-${k}`).style.height = (stats.breakdown[k] / max) * 100 + "%";
+        });
+
+        document.getElementById("best-mission-name").innerText = stats.bestMission.name;
+        document.getElementById("best-mission-val").innerText = `${stats.bestMission.kills} Kills`;
+        document.getElementById("worst-mission-name").innerText = stats.worstMission.name;
+        document.getElementById("worst-mission-val").innerText = `${stats.worstMission.deaths} Muertes`;
+
+        // Tabla
+        const tbl = document.getElementById("table-official-body");
+        tbl.innerHTML = "";
+        history.reverse().forEach((m) => {
+            const kd = m.deaths > 0 ? (m.kills / m.deaths).toFixed(2) : m.kills;
+            const row = document.createElement("tr");
+            row.className = "border-b border-white/5 hover:bg-white/5";
+            row.innerHTML = `<td class="p-2 truncate max-w-[140px]" title="${m.name}"><span class="text-white font-bold">${m.name}</span></td><td class="p-2 text-right text-white">${m.kills}</td><td class="p-2 text-right text-red-400">${m.deaths}</td><td class="p-2 text-right text-pmc-accent">${kd}</td>`;
+            tbl.appendChild(row);
+        });
+        if (!history.length) tbl.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-white/20">Sin registros</td></tr>';
+
+        switchTab("stats");
+        modal.showModal();
+        modalContent.classList.remove("opacity-0");
+    }
+
+    function closeOperatorModal() {
+        modalContent.classList.add("opacity-0");
+        setTimeout(() => modal.close(), 300);
+    }
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #fb923c; border-radius: 10px; }
+    @keyframes rankGlow { 0%, 100% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.1); } 50% { text-shadow: 0 0 20px rgba(251, 146, 60, 0.5); border-color: rgba(251, 146, 60, 0.4); } }
+    .rank-pulse { animation: rankGlow 3s ease-in-out infinite; }
+</style>

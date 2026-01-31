@@ -1,0 +1,281 @@
+{
+  "Zona Gris": {
+    "customDate": "2025-10-18",
+    "tags": [
+      "OFICIAL",
+      "ASALTO"
+    ],
+    "difficulty": "Normal"
+  },
+  "ENTRENAMIENTO": {
+    "customDate": "2025-10-19",
+    "tags": [
+      "ENTRENAMIENTO"
+    ],
+    "rating": 3
+  },
+  "Nueva Tierra": {
+    "customDate": "2025-10-31",
+    "abandonment": "BAJO (0-3)",
+    "comments": "Fecha calculada según ciclo (Viernes). Nota: Este nombre se repite, se asigna la última fecha."
+  },
+  "Bastion Oriental": {
+    "customDate": "2025-10-25",
+    "tags": [
+      "CQB",
+      "DEFENSA"
+    ],
+    "difficulty": "Difícil"
+  },
+  "Opération Confinement": {
+    "customDate": "2025-10-26",
+    "tags": [
+      "OFICIAL"
+    ]
+  },
+  "Buscando adentro": {
+    "customDate": "2025-11-01",
+    "tags": [
+      "SIGILO"
+    ]
+  },
+  "U-2 Derribado": {
+    "customDate": "2025-11-02",
+    "tags": [
+      "RESCATE",
+      "AEREA"
+    ]
+  },
+  "ATAQUE FANTASMA": {
+    "customDate": "2025-11-07",
+    "tags": [
+      "NOCTURNA",
+      "SIGILO"
+    ]
+  },
+  "Despliegue Improvisado - 1": {
+    "customDate": "2025-11-08",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "BLACK ICE": {
+    "customDate": "2025-11-09",
+    "tags": [
+      "OFICIAL",
+      "HARDCORE"
+    ],
+    "atmosphere": "Tensa"
+  },
+  "BLACK ICE - II": {
+    "customDate": "2025-11-14",
+    "tags": [
+      "OFICIAL",
+      "HARDCORE"
+    ]
+  },
+  "Refuerzos Inesperados": {
+    "customDate": "2025-11-15",
+    "tags": [
+      "ASALTO"
+    ]
+  },
+  "Desconocida": {
+    "customDate": "2025-11-16",
+    "abandonment": "ALTO (5-10)"
+  },
+  "Base 250 - Entrenamiento": {
+    "customDate": "2026-01-02",
+    "tags": [
+      "ENTRENAMIENTO"
+    ],
+    "comments": "Múltiples sesiones detectadas. Fecha asignada a la última sesión del ciclo."
+  },
+  "Sangre y Ambar": {
+    "customDate": "2025-11-23",
+    "tags": [
+      "OFICIAL"
+    ]
+  },
+  "Desierto negro": {
+    "customDate": "2025-11-28",
+    "tags": [
+      "VEHICULOS"
+    ]
+  },
+  "LA PASIÓN": {
+    "customDate": "2025-11-29",
+    "tags": [
+      "ROLEPLAY"
+    ]
+  },
+  "RESCATE Y HUIDA": {
+    "customDate": "2025-11-30",
+    "tags": [
+      "CQB"
+    ]
+  },
+  "EJE DEL NORTE | Punto de no retorno | Capítulo 1": {
+    "customDate": "2025-12-05",
+    "tags": [
+      "OFICIAL",
+      "CAMPAÑA"
+    ],
+    "rating": 5
+  },
+  "MISMA MIERDA, DÍA DIFERENTE": {
+    "customDate": "2025-12-06",
+    "tags": [
+      "ASALTO"
+    ]
+  },
+  "Oro Verde": {
+    "customDate": "2025-12-07",
+    "tags": [
+      "SELVA"
+    ]
+  },
+  "Operación Martillo del Lythiun": {
+    "customDate": "2025-12-12",
+    "tags": [
+      "OFICIAL"
+    ]
+  },
+  "Operación Trident Dawn": {
+    "customDate": "2025-12-13",
+    "tags": [
+      "AEREA",
+      "ASALTO"
+    ]
+  },
+  "Cache": {
+    "customDate": "2025-12-14",
+    "tags": [
+      "CQB"
+    ]
+  },
+  "Operación Martillo Negro": {
+    "customDate": "2025-12-26",
+    "tags": [
+      "OFICIAL"
+    ]
+  },
+  "Despliegue improvisado - 3": {
+    "customDate": "2025-12-27",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "Rompeolas": {
+    "customDate": "2025-12-28",
+    "tags": [
+      "NAVAL"
+    ]
+  },
+  "Despliegue improvisado - 4": {
+    "customDate": "2026-01-03",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "Dynamic Recon Ops ACE - Beketov": {
+    "customDate": "2026-01-04",
+    "tags": [
+      "GENERADA"
+    ]
+  },
+  "Despliegue improvisado - 5": {
+    "customDate": "2026-01-09",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "Operación Trident Dawn - Fase II": {
+    "customDate": "2026-01-10",
+    "tags": [
+      "OFICIAL",
+      "CAMPAÑA"
+    ]
+  },
+  "Despliegue improvisado - 6": {
+    "customDate": "2026-01-11",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "Despliegue improvisado - 7": {
+    "customDate": "2026-01-16",
+    "tags": [
+      "ARCADE"
+    ]
+  },
+  "Trabajos Pendientes #EPS3": {
+    "customDate": "2026-01-17",
+    "tags": [
+      "OFICIAL"
+    ]
+  },
+  "Buscar y Destruir": {
+    "customDate": "2026-01-18",
+    "tags": [
+      "ASALTO"
+    ]
+  },
+  "OP. GHOST WIND #PT2": {
+    "customDate": "2026-01-23",
+    "tags": [
+      "SIGILO"
+    ]
+  },
+  "Base250_3": {
+    "customDate": "2026-01-24",
+    "tags": [
+      "ENTRENAMIENTO"
+    ]
+  },
+  "__SYSTEM_LOGS__": {
+    "list": [
+      {
+        "id": 1769857159665,
+        "date": "2026-01-31T10:59:19.665Z",
+        "admin": "Sergio",
+        "action": "DEBRIEFING_GUARDADO",
+        "details": "Misión: Improvisada 5",
+        "type": "INFO"
+      },
+      {
+        "id": 1769856447370,
+        "date": "2026-01-31T10:47:27.370Z",
+        "admin": "Sergio",
+        "action": "DEBRIEFING_GUARDADO",
+        "details": "Misión: Improvisada 5",
+        "type": "INFO"
+      },
+      {
+        "id": 1769856258103,
+        "date": "2026-01-31T10:44:18.103Z",
+        "admin": "Sergio",
+        "action": "DEBRIEFING_GUARDADO",
+        "details": "Misión: Improvisada 5",
+        "type": "INFO"
+      },
+      {
+        "id": 1769851274019,
+        "date": "2026-01-31T09:21:14.019Z",
+        "admin": "Sergio",
+        "action": "DEBRIEFING_GUARDADO",
+        "details": "Misión: Improvisada 5",
+        "type": "INFO"
+      }
+    ]
+  },
+  "Improvisada_5": {
+    "rating": 2,
+    "difficulty": "Fácil",
+    "abandonCount": 1,
+    "abandonReason": "IRL",
+    "tags": [],
+    "customDate": "2026-01-30",
+    "zeusIntensity": "Media (Reactiva)"
+  }
+}

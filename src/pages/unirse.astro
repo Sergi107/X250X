@@ -1,0 +1,227 @@
+---
+import Layout from "../layouts/Layout.astro";
+import {
+    UserPlus,
+    CheckCircle2,
+    Mic,
+    Gamepad2,
+    Disc,
+    ShieldAlert,
+    ChevronRight,
+    ArrowRight,
+    Target,
+    Users,
+    Radio,
+    BookOpen
+} from "lucide-react";
+
+const requirements = [
+    {
+        icon: Gamepad2,
+        title: "Arma 3 y Preset de Mods",
+        desc: "Es obligatorio y fundamental tener Arma 3 con el preset de mods oficial de la PMC 250 instalado y funcionando correctamente. Si necesitas ayuda, pregunta a nuestro Staff en Discord.",
+        color: "text-pmc-accent"
+    },
+    {
+        icon: Mic,
+        title: "Comunicaciones",
+        desc: "Micrófono funcional sin ruido excesivo y TeamSpeak 3 instalado. Entendemos que cada uno tiene su casa, pero una comunicación clara es vital.",
+        color: "text-blue-400"
+    },
+    {
+        icon: ShieldAlert,
+        title: "Madurez",
+        desc: "Buscamos madurez y compromiso, si no puedes demostrarlo, no estás preparado para unirte.",
+        color: "text-red-400"
+    },
+    {
+        icon: Disc,
+        title: "Compromiso",
+        desc: "Asistencia regular a los operativos oficiales (Viernes/Sábado). Se valora la constancia.",
+        color: "text-white"
+    }
+];
+
+const steps = [
+    {
+        id: "",
+        title: "Enlistamiento",
+        desc: "Únete a nuestro servidor de Discord y abre un ticket de reclutamiento en el canal correspondiente.",
+        icon: Radio
+    },
+    {
+        title: "Entrevista",
+        desc: "Breve charla con un instructor para conocernos, validar requisitos y explicarte la normativa.",
+        icon: Users
+    },
+    {
+        title: "Instrucción Básica",
+        desc: "Curso de Instrucción Básica de Infantería. Aprenderás formaciones, radio y medicina básica.",
+        icon: BookOpen
+    },
+    {
+        title: "Despliegue",
+        desc: "Asignación a una escuadra. Comienza tu carrera operativa en la PMC 250.",
+        icon: Target
+    }
+];
+---
+
+<Layout title="Reclutamiento - PMC250">
+    <div class="fixed inset-0 z-0 bg-pmc-950">
+        <img
+            src="/multimedia/020.png"
+            alt=""
+            class="absolute inset-0 w-full h-full object-cover opacity-20 transform scale-110 grayscale"
+        />
+        <div
+            class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-size-[40px_40px]"
+        ></div>
+    </div>
+
+    <main class="relative z-10 pt-40 pb-40 container mx-auto px-6 max-w-7xl">
+        
+        <header class="mb-20 border-l border-pmc-accent pl-8 animate-in fade-in slide-in-from-left-10 duration-700">
+            <div class="flex items-center gap-3 text-pmc-accent font-mono text-[10px] tracking-[0.4em] uppercase mb-4">
+                <UserPlus size={14} /> Centro de Reclutamiento
+            </div>
+            <h1 class="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-none mb-4">
+                ÚNETE <span class="text-pmc-accent text-outline">.</span>
+            </h1>
+            <p class="text-xl text-white/60 max-w-2xl font-light">
+                No buscamos soldados perfectos. Buscamos operadores inteligentes, comunicativos y capaces de trabajar en equipo bajo presión.
+            </p>
+        </header>
+
+        <section class="mb-32">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="h-px bg-white/10 w-20"></div>
+                <h2 class="text-pmc-accent font-mono text-sm tracking-[0.2em] uppercase font-bold">
+                    // Requisitos Previos
+                </h2>
+                <div class="h-px bg-white/10 grow"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {requirements.map((req) => (
+                    <div class="group relative bg-black/40 border border-white/10 p-8 hover:bg-white/5 hover:border-pmc-accent/50 transition-all duration-300">
+                        <div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-white/20 group-hover:border-pmc-accent transition-colors"></div>
+                        <div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-white/20 group-hover:border-pmc-accent transition-colors"></div>
+
+                        <req.icon size={32} className={`${req.color} mb-6`} />
+                        
+                        <h3 class="text-xl font-bold text-white uppercase tracking-tight mb-3 group-hover:text-pmc-accent transition-colors">
+                            {req.title}
+                        </h3>
+                        <p class="text-sm text-white/50 leading-relaxed">
+                            {req.desc}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </section>
+
+        <section class="mt-40 mb-32">
+            <div class="flex items-center gap-4 mb-12">
+                <div class="h-px bg-white/10 w-20"></div>
+                <h2 class="text-pmc-accent font-mono text-sm tracking-[0.2em] uppercase font-bold">
+                    // Proceso de Acceso
+                </h2>
+                <div class="h-px bg-white/10 grow"></div>
+            </div>
+
+            <div class="relative grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="hidden md:block absolute top-12 left-0 w-full h-px bg-linear-to-r from-transparent via-pmc-accent/50 to-transparent border-t border-dashed border-white/20 z-0"></div>
+
+                {steps.map((step) => (
+                    <div class="relative z-10 group">
+                        <div class="bg-pmc-950 border border-white/10 p-6 h-full relative overflow-hidden group-hover:-translate-y-2 transition-transform duration-500">
+                            <span class="absolute -right-4 -top-6 text-9xl font-black text-white/5 select-none group-hover:text-pmc-accent/5 transition-colors">
+                                {step.id}
+                            </span>
+
+                            <div class="relative z-10 flex flex-col h-full">
+                                <div class="w-12 h-12 bg-pmc-accent/10 border border-pmc-accent/30 flex items-center justify-center rounded-sm mb-6 group-hover:bg-pmc-accent group-hover:text-black transition-all duration-300">
+                                    <step.icon size={20} />
+                                </div>
+                                
+                                <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">
+                                    <span class="text-pmc-accent mr-2">{step.id}.</span>{step.title}
+                                </h3>
+                                <p class="text-xs text-white/50 font-mono leading-relaxed mt-auto">
+                                    {step.desc}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+
+        <section class="relative mt-12 overflow-hidden border-y border-white/10 bg-pmc-accent/5 pt-20">
+            <div class="absolute inset-0 bg-[url('/multimedia/noise.png')] opacity-5 mix-blend-overlay"></div>
+            
+            <div class="relative z-10 text-center flex flex-col items-center">
+                <div class="inline-flex items-center gap-2 px-3 py-1 border border-pmc-accent/30 rounded-full bg-pmc-accent/10 mt-8 mb-6">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span class="text-[10px] font-mono text-pmc-accent uppercase tracking-widest">Reclutamiento Abierto</span>
+                </div>
+
+                <h2 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter mb-6">
+                    ¿Listo para dar el paso?
+                </h2>
+                
+                <a 
+                    href="https://discord.gg/rWkuvAN" 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="group relative px-10 py-5 bg-pmc-accent text-black font-black uppercase tracking-[0.2em] text-lg hover:bg-white transition-all duration-300 clip-path-slant"
+                >
+                    <span class="relative z-10 flex items-center gap-4">
+                        Entrar al Discord <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform"/>
+                    </span>
+                    <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
+                </a>
+
+                <p class="mt-8 text-xs font-mono text-white/40 max-w-md mx-auto mb-4">
+                    Al entrar, serás redirigido a nuestra sala de espera. Por favor, lee las normas en el canal <span class="text-white">#bienvenida</span> antes de abrir ticket.
+                </p>
+            </div>
+        </section>
+
+        <section class="mt-40 grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div>
+                <h3 class="text-2xl font-black text-white uppercase mb-6 flex items-center gap-2">
+                    <span class="text-pmc-accent">///</span> Preguntas Frecuentes
+                </h3>
+                <p class="text-white/60 mb-8">
+                    Resolvemos las dudas más habituales antes de que contactes con instrucción.
+                </p>
+            </div>
+            <div class="space-y-4">
+                {[
+                    { q: "¿Necesito los DLCs?", a: "No, solo necesitas el juego base y el PRESET de Mods" },
+                    { q: "¿Qué horario tenéis?", a: "Operamos principalmente Viernes y Sábados a las 22:00 hora peninsular española (CET/CEST)." },
+                    { q: "¿Hay sistema de asistencia?", a: "Sí. Entendemos que la vida real es prioridad, pero pedimos un minimo de asistencia mensual." }
+                ].map(faq => (
+                    <div class="border-b border-white/10 pb-4">
+                        <h4 class="font-bold text-white mb-2 flex items-center gap-2">
+                            <ChevronRight size={14} className="text-pmc-accent" /> {faq.q}
+                        </h4>
+                        <p class="text-sm text-white/50 pl-6">{faq.a}</p>
+                    </div>
+                ))}
+            </div>
+        </section>
+
+    </main>
+</Layout>
+
+<style>
+.clip-path-slant {
+    clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%);
+}
+</style>

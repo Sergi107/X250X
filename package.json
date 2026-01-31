@@ -1,0 +1,37 @@
+{
+  "name": "pmc250-rework",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.5.2",
+    "@astrojs/react": "^4.4.2",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/onest": "^5.2.11",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/onest": "^5.2.11",
+    "@google/generative-ai": "^0.24.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "arctic": "^3.7.0",
+    "astro": "^5.16.11",
+    "clsx": "^2.1.1",
+    "cookie": "^1.1.1",
+    "discord.js": "^14.25.1",
+    "lucide-react": "^0.562.0",
+    "openai": "^6.17.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "recharts": "^3.7.0",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9"
+  }
+}

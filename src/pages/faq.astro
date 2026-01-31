@@ -1,0 +1,227 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { 
+    Search,
+    ChevronDown, 
+    AlertTriangle,
+    XCircle,
+    FileQuestionMark
+} from 'lucide-react';
+
+const allFaqs = [
+    { q: "¿Cuáles son los requisitos mínimos para unirse?", a: "Poseer una copia legal de Arma 3, micrófono funcional y, sobre todo, una actitud madura. No exigimos experiencia previa; nosotros te formamos." },
+    { q: "¿Tengo que pasar por una fase de instrucción?", a: "Afirmativo. Todo recluta pasa por una Instrucción Básica para asegurar que su equipo técnico funciona y conoce los protocolos esenciales de la unidad." },
+    { q: "¿Puedo unirme si soy menor de edad?", a: "Nuestra unidad no requiere una edad mínima estricta, valoramos la madurez y responsabilidad por encima de la fecha de nacimiento." },
+    { q: "No puedo jugar los fines de semana, ¿puedo unirme?", a: "Exigimos compromiso con las misiones oficiales, que son los fines de semana. Necesitamos que nuestros miembros puedan asistir regularmente." },
+    { q: "¿Qué es PMC 250?", a: "PMC 250 es una unidad de milsim en Arma 3 que simula operaciones militares modernas con un enfoque en realismo y trabajo en equipo." },
+    { q: "¿Cuántos GB ocupan los mods?", a: "El repositorio actual oscila entre 80GB y 95GB. Esto puede variar según las actualizaciones y cambios en los mods." },
+    { q: "¿Qué plugins de TeamSpeak necesito?", a: "Solo necesitas el plugin de ACRE2, el cual viene incluido en el preset de mods que descargamos." },
+    { q: "¿Por qué pesan tanto los mods?", a: "Añaden texturas de alta calidad, modelos 3D complejos y funcionalidades avanzadas para modernizar la experiencia de Arma 3." },
+    { q: "¿Puedo usar mods adicionales?", a: "Solo los mods oficiales del servidor están garantizados. Los adicionales pueden causar conflictos de rendimiento." },
+    { q: "¿Cuál es el horario de las misiones?", a: "Nuestras misiones oficiales son los Viernes y Sábados a las 22:00h (Hora Española). El servidor abre 30 min antes." },
+    { q: "¿Es obligatoria la asistencia?", a: "La vida real es la prioridad. Solo pedimos compromiso: si te apuntas a una misión, asiste o avisa con antelación." },
+    { q: "¿Puedo participar en misiones sin instrucción?", a: "No. La Instrucción Básica es obligatoria para asegurar que todos conocen los procedimientos de la unidad." },
+    { q: "Quiero un rol específico, ¿Puedo?", a: "Durante la instrucción puedes expresar tus preferencias. Asignamos roles según habilidades, aunque la prioridad es el equipo." }
+];
+---
+
+<Layout title="FAQ - Database PMC250">
+        {/* FONDO GLOBAL - Scale 1.1 para zoom 10% */}
+        <img
+            src="/multimedia/032.png"
+            alt=""
+            class="fixed inset-0 w-full h-full object-cover opacity-5 transform scale-110"
+        />
+        <div
+            class="fixed inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-size-[40px_40px]"
+        >
+        </div>
+    </div>
+
+    <main id="main-content" class="relative z-10">
+        
+        <header class="container mx-auto px-6 text-center mb-16">
+            <section class="w-full pt-40 pb-16 px-6 border-b border-white/5">
+                <div class="container mx-auto text-center">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded bg-pmc-accent/10 border border-pmc-accent/20 text-pmc-accent text-[10px] font-mono tracking-widest uppercase mb-6 backdrop-blur-md">
+                        <FileQuestionMark size={12} />
+                        Dudas antes de la batalla
+                    </div>
+                    
+                    <h1 class="text-4xl md:text-6xl font-black text-white uppercase mb-6 drop-shadow-2xl">
+                        Preguntas <span class="text-transparent bg-clip-text bg-linear-to-r from-pmc-accent to-orange-600">frecuentes</span>
+                    </h1>
+                    
+                    <div class="max-w-xl mx-auto relative group mt-8">
+                        <div class="absolute -inset-0.5 bg-linear-to-r from-pmc-accent/50 to-orange-600/50 rounded blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                        <div class="relative flex items-center bg-pmc-900/80 backdrop-blur-md border border-white/10 rounded overflow-hidden">
+                            <div class="pl-4 text-gray-400">
+                                <Search size={20} />
+                            </div>
+                            <input 
+                                id="search-input"
+                                type="text" 
+                                placeholder="Buscar en la base de datos..." 
+                                class="w-full bg-transparent border-none text-white px-4 py-4 focus:outline-none placeholder-gray-500 font-mono text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </header>
+
+        <div class="container mx-auto px-6 max-w-4xl pb-40">
+            <div id="faq-list" class="flex flex-col gap-4">
+                {allFaqs.map((item) => (
+                    <div class="faq-item group overflow-hidden shadow-lg transition-all duration-300" data-question={item.q.toLowerCase()} data-answer={item.a.toLowerCase()}>
+                        <button class="faq-trigger w-full flex items-center justify-between p-6 md:p-8 bg-white/2 border border-white/10 hover:border-pmc-accent/40 hover:bg-white/5 transition-all text-left relative cursor-pointer">
+                            <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-pmc-accent scale-y-0 transition-transform duration-300 faq-indicator"></div>
+                            
+                            <span class="text-gray-200 font-bold uppercase tracking-widest text-sm md:text-base pl-4 group-hover:text-white transition-colors">
+                                {item.q}
+                            </span>
+                            <div class="bg-white/5 p-2 rounded-full group-hover:bg-pmc-accent/20 transition-colors shrink-0">
+                                <ChevronDown className="text-gray-500 transition-transform duration-500 faq-icon group-hover:text-pmc-accent" size={20} />
+                            </div>
+                        </button>
+                        
+                        <div class="faq-content transition-all duration-300 ease-in-out bg-black/40 border-x border-white/5">
+                            <div class="overflow-hidden">
+                                <div class="p-8 md:p-10 text-gray-300 leading-relaxed text-sm md:text-base border-b border-white/5">
+                                    <div class="flex gap-6 items-start">
+                                        <div class="w-1.5 h-1.5 bg-pmc-accent mt-2.5 rounded-full shadow-[0_0_10px_#fb923c] shrink-0"></div>
+                                        <p class="font-medium">{item.a}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div id="no-results" class="hidden py-20 text-center flex-col items-center gap-4 border border-white/5 bg-white/1">
+                <XCircle size={48} className="text-white/10" />
+                <p class="text-gray-500 font-mono uppercase tracking-[0.3em]">No se han encontrado registros coincidentes</p>
+            </div>
+
+            <div class="mt-40 p-1 bg-linear-to-r from-pmc-accent/30 via-transparent to-transparent py-10">
+                <div class="p-8 md:p-12 bg-pmc-950/90 border border-white/10 backdrop-blur-2xl flex flex-col lg:flex-row items-center gap-12 justify-between">
+                    <div class="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                        <div class="w-20 h-20 bg-pmc-accent/10 flex items-center justify-center rounded-sm text-pmc-accent border border-pmc-accent/20 transform rotate-45 shrink-0">
+                            <AlertTriangle size={40} className="-rotate-45" />
+                        </div>
+                        <div>
+                            <h4 class="text-2xl font-black text-white uppercase tracking-widest mb-2">¿Necesitas ayuda?</h4>
+                            <p class="text-gray-400 font-mono text-sm uppercase tracking-wider opacity-70">Contacta con nuestro equipo de Staff en Discord.</p>
+                        </div>
+                    </div>
+                    
+                    <a 
+                        href="https://discord.gg/rWkuvAN" 
+                        target="_blank" 
+                        class="w-full lg:w-auto px-12 py-6 bg-pmc-accent text-pmc-950 font-black uppercase tracking-[0.4em] text-xs hover:bg-white hover:scale-105 transition-all text-center shadow-[0_0_30px_rgba(251,146,60,0.3)]"
+                    >
+                        Unirse al Discord
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+</Layout>
+
+<style>
+    .faq-content {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    .faq-item.active .faq-content {
+        grid-template-rows: 1fr;
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .faq-item.active .faq-icon {
+        transform: rotate(180deg);
+        color: #fb923c;
+    }
+
+    .faq-item.active .faq-indicator {
+        transform: scaleY(1);
+    }
+
+    .faq-trigger {
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
+    }
+
+    .faq-content > div {
+        overflow: hidden;
+    }
+</style>
+
+<script>
+    // LÓGICA DE BÚSQUEDA Y ACORDEÓN
+    const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const faqItems = document.querySelectorAll('.faq-item');
+    const noResults = document.getElementById('no-results');
+
+    // 1. Filtrado de búsqueda
+    searchInput?.addEventListener('input', (e) => {
+        const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
+        let foundCount = 0;
+
+        faqItems.forEach(item => {
+            const question = item.getAttribute('data-question') || '';
+            const answer = item.getAttribute('data-answer') || '';
+
+            if (question.includes(query) || answer.includes(query)) {
+                (item as HTMLElement).style.display = 'block';
+                foundCount++;
+            } else {
+                (item as HTMLElement).style.display = 'none';
+                item.classList.remove('active'); // Cerrar si se oculta
+            }
+        });
+
+        // Mostrar/Ocultar mensaje de "No resultados"
+        if (foundCount === 0) {
+            noResults?.classList.remove('hidden');
+            noResults?.classList.add('flex');
+        } else {
+            noResults?.classList.add('hidden');
+            noResults?.classList.remove('flex');
+        }
+    });
+
+    // 2. Lógica del Acordeón
+    faqItems.forEach(item => {
+        const trigger = item.querySelector('.faq-trigger');
+
+        trigger?.addEventListener('click', () => {
+            const isActive = item.classList.contains('active');
+
+            // Cerrar otros abiertos (Opcional, para que sea exclusivo)
+            faqItems.forEach(otherItem => {
+                if (otherItem !== item) {
+                    otherItem.classList.remove('active');
+                }
+            });
+
+            // Alternar el actual
+            item.classList.toggle('active');
+
+            // Scroll suave si se abre
+            if (!isActive) {
+                setTimeout(() => {
+                    item.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'nearest' 
+                    });
+                }, 310);
+            }
+        });
+    });
+</script>

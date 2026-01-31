@@ -1,0 +1,123 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { SESSION_COOKIE } from "../lib/auth";
+import AdminDashboard from "../components/AdminDashboard";
+import { ShieldAlert, Lock, Wifi } from "lucide-react";
+import fs from "node:fs/promises";
+import path from "node:path"; // <--- IMPORTANTE
+import OperatorFinder from "../components/admin/OperatorFinder";
+import { getOrbatData } from "../lib/orbat-service";
+
+// --- SEGURIDAD ---
+const STAFF_ROLE_ID = "1087092702526582894";
+let adminUser: any = null;
+let rawMissions = [];
+let serverMetadata = {};
+let allOperators = []; 
+
+if (!Astro.cookies.has(SESSION_COOKIE)) return Astro.redirect("/");
+
+const cookieValue = Astro.cookies.get(SESSION_COOKIE)?.value;
+
+if (cookieValue) {
+    try {
+        const buffer = Buffer.from(cookieValue, 'base64');
+        const session = JSON.parse(buffer.toString('utf-8'));
+        
+        allOperators = await getOrbatData();
+        adminUser = allOperators.find((op: any) => op.id === session.id);
+
+        const hasRole = adminUser?.roles?.includes(STAFF_ROLE_ID);
+        if (!adminUser?.isAdmin && !hasRole) return Astro.redirect("/");
+
+        // 2. CARGA DE DATOS DE MISIONES
+        const response = await fetch('https://pmc250.com/datos_misiones_historico.json');
+        if (response.ok) {
+            rawMissions = await response.json();
+            if (!Array.isArray(rawMissions)) rawMissions = [];
+        }
+
+        // 3. CARGA DE METADATOS (SOLUCIÓN RUTA RAIZ)
+        try {
+            // Usamos process.cwd() para asegurar que buscamos en la raíz del proyecto
+            const metadataPath = path.join(process.cwd(), "admin_metadata.json");
+            const fileContent = await fs.readFile(metadataPath, "utf-8");
+            serverMetadata = JSON.parse(fileContent);
+            console.log("✅ [ADMIN] Metadatos cargados correctamente.");
+        } catch (e) {
+            console.error("⚠️ [ADMIN] No se pudo leer admin_metadata.json en la raíz:", e);
+            serverMetadata = {};
+        }
+
+    } catch (e) {
+        console.error("Error en admin.astro:", e);
+        rawMissions = [];
+    }
+} else {
+    return Astro.redirect("/");
+}
+---
+
+<Layout title="S3 COMMAND // PMC250">
+    <div class="fixed inset-0 z-0 bg-[#050505]">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(251,146,60,0.05),transparent_50%)]"></div>
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+    </div>
+    <div class="fixed inset-0 z-0">
+        <img 
+            src="/multimedia/010.png" 
+            alt="Fondo Táctico" 
+            class="w-full h-full object-cover opacity-80 scale-110"
+        />
+        <div class="absolute inset-0 bg-pmc-950/80"></div>
+    </div>
+
+    <main class="relative z-10 pt-32 pb-40 container mx-auto px-6 max-w-7xl">
+        <header class="flex flex-wrap items-center justify-between gap-6 mb-12 border-b border-white/10 pb-8 animate-in fade-in slide-in-from-top-4 duration-700">
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-3">
+                    <span class="bg-red-600 px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-widest flex items-center gap-2 shadow-[0_0_10px_rgba(220,38,38,0.5)]">
+                        <Lock size={10} /> Panel PRIVADO Administración
+                    </span>
+                    <span class="text-white/20 font-mono text-[9px] flex items-center gap-1 animate-pulse">
+                        <Wifi size={10}/> UPLINK_ESTABLISHED_SERVER
+                    </span>
+                </div>
+                <h1 class="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter">
+                    STAFF <span class="text-pmc-accent text-outline-thin">X250X</span>
+                </h1>
+            </div>
+            <div class="flex items-center gap-6">
+                 <div class="hidden sm:flex flex-col items-end border-r border-white/10 pr-6">
+                    <span class="text-[9px] text-white/30 uppercase tracking-[0.2em] font-bold">Identificación:</span>
+                    <span class="text-white font-black uppercase text-sm tracking-wide">{adminUser?.name || "Unknown"}</span>
+                 </div>
+                 <div class="p-4 bg-white/5 border border-white/10 rounded-sm">
+                    <ShieldAlert className="text-pmc-accent" size={32} />
+                 </div>
+            </div>
+        </header>
+
+
+        <div class="animate-in fade-in duration-1000 delay-200">
+            <AdminDashboard 
+                client:only="react" 
+                rawMissions={rawMissions}
+                initialMetadata={serverMetadata}
+                currentUser={adminUser?.name || "S-3 Admin"} 
+            />
+        </div>
+        <section class="mb-12">
+           <OperatorFinder client:load data={allOperators} metadata={serverMetadata} />
+        </section>
+
+    </main>
+</Layout>
+
+<style is:global>
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0a0a; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #fb923c; }
+    .text-outline-thin { -webkit-text-stroke: 1px rgba(255,255,255,0.15); color: transparent; }
+</style>

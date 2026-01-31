@@ -1,0 +1,212 @@
+---
+import { Menu, X, ChevronDown, LogOut, FileText, ShieldAlert } from 'lucide-react';
+import { getOrbatData, specialtyConfig } from '../lib/orbat-service';
+import { SESSION_COOKIE } from '../lib/auth';
+
+interface UserSession {
+    id: string;
+    username: string;
+    avatar: string;
+    exp: number;
+}
+
+const pathname = new URL(Astro.request.url).pathname;
+const currentPath = pathname.replace(/\/$/, "");
+
+const navLinks = [
+    { name: 'Guías', href: '/guias' },
+    { name: 'FAQ', href: '/faq' },
+    { name: 'Multimedia', href: '/multimedia' },
+    { name: 'Intel', href: '/intel' },
+    { name: 'ORBAT', href: '/orbat' },
+];
+
+let session: UserSession | null = null;
+let operatorData: any = null;
+
+if (Astro.cookies.has(SESSION_COOKIE)) {
+    const cookieValue = Astro.cookies.get(SESSION_COOKIE)?.value;
+    
+    if (cookieValue) {
+        try {
+            const buffer = Buffer.from(cookieValue, 'base64');
+            const decodedJson = JSON.parse(buffer.toString('utf-8'));
+            
+            if (decodedJson.exp > Date.now()) {
+                session = decodedJson as UserSession;
+                try {
+                    const orbatData = await getOrbatData();
+                    operatorData = orbatData.find((op: any) => op.id === session?.id);
+                } catch (e) { 
+                    console.error("Error cruzando datos Orbat:", e); 
+                }
+            }
+        } catch (e) {
+            console.error("Error al leer la cookie de sesión:", e);
+        }
+    }
+}
+
+const userDisplay = {
+    name: operatorData?.name || session?.username || "Recluta",
+    avatar: operatorData?.avatar || (session?.avatar 
+            ? `https://cdn.discordapp.com/avatars/${session.id}/${session.avatar}.png` 
+            : `https://cdn.discordapp.com/embed/avatars/0.png`),
+    rank: operatorData?.rank || "Invitado",
+    spec: operatorData?.specialty || "Civil",
+    specColor: operatorData ? (specialtyConfig[operatorData.specialty]?.color || "text-gray-400") : "text-gray-400"
+};
+---
+
+<header class="fixed top-0 left-0 right-0 z-50 pt-4 px-4 transition-transform duration-300" id="main-header">
+    
+    {/* IMPORTANTE: He quitado 'clip-path-slant' de aquí abajo para que no recorte el menú desplegable */}
+    <nav class="container mx-auto h-16 bg-pmc-950/90 backdrop-blur-xl border border-white/10 flex items-center justify-between px-6 relative z-50 shadow-2xl">
+        
+        <a href="/" id="logo-link" class="flex items-center gap-3 group select-none cursor-pointer">
+            <div class="h-8 w-8 bg-pmc-accent flex items-center justify-center font-black text-pmc-950 text-lg transform skew-x-[-10deg] group-hover:skew-x-0 transition-transform duration-300">X</div>
+            <div class="flex flex-col leading-none">
+                <span class="text-lg font-black tracking-tighter text-white uppercase">PMC<span class="text-pmc-accent">250</span></span>
+            </div>
+        </a>
+
+        <ul class="hidden md:flex items-center gap-1 font-mono text-xs font-bold uppercase tracking-widest">
+            {navLinks.map((link) => {
+                const isActive = currentPath === link.href;
+                return (
+                    <li class="relative group">
+                        <a href={link.href} class={`px-4 py-2 flex items-center gap-2 transition-all clip-path-slant ${isActive ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'}`}>
+                            {link.name}
+                            {isActive && <span class="w-1.5 h-1.5 rounded-full bg-pmc-accent animate-pulse" />}
+                        </a>
+                    </li>
+                );
+            })}
+        </ul>
+
+        <div class="flex items-center gap-4">
+            {session ? (
+                /* PERFIL DESKTOP */
+                /* Usamos 'group' y 'focus-within' para que funcione al hacer hover Y click */
+                <div class="hidden md:block relative group z-50">
+                    <button class="flex items-center gap-3 pl-4 pr-2 py-1.5 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-pmc-accent/50 transition-all clip-path-slant cursor-pointer focus:outline-none">
+                        <div class="flex flex-col items-end text-right mr-1">
+                            <span class="text-white font-bold text-xs uppercase tracking-wider leading-none mb-1 max-w-25 truncate">{userDisplay.name}</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class={`text-[9px] font-mono uppercase ${userDisplay.specColor}`}>{userDisplay.spec}</span>
+                                <span class="w-px h-2 bg-white/20"></span>
+                                <span class="text-[9px] font-mono text-white/50 uppercase">{userDisplay.rank}</span>
+                            </div>
+                        </div>
+                        <div class="relative w-9 h-9 shrink-0">
+                            <img src={userDisplay.avatar} alt="Avatar" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all border border-white/20" />
+                            <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border border-black rounded-full"></div>
+                        </div>
+                        <ChevronDown size={14} className="text-white/40 group-hover:text-pmc-accent transition-colors ml-1" />
+                    </button>
+
+                    {/* MENÚ DESPLEGABLE */}
+                    <div class="absolute right-0 top-full mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
+                        <div class="bg-pmc-950 border border-white/10 shadow-2xl clip-path-slant overflow-hidden flex flex-col">
+                            <div class="px-4 py-2 border-b border-white/5 text-[9px] text-white/30 uppercase tracking-widest">Cuenta</div>
+                            
+                            {operatorData ? (
+                                <a href="/perfil" class="flex items-center gap-3 px-4 py-3 text-xs font-bold text-white/70 uppercase tracking-widest hover:bg-pmc-accent hover:text-pmc-950 transition-colors">
+                                    <FileText size={14} className="shrink-0" /> Ver Mi Ficha
+                                </a>
+                            ) : (
+                                <span class="px-4 py-3 text-[10px] text-white/30 italic">Sin ficha operativa</span>
+                            )}
+
+                            {operatorData && operatorData.isAdmin && (
+                                <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-xs font-bold text-yellow-500 uppercase tracking-widest hover:bg-yellow-500/10 transition-colors border-t border-white/5">
+                                    <ShieldAlert size={14} className="shrink-0" /> Admin
+                                </a>
+                            )}
+
+                            <a href="/api/auth/logout" class="flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-400 uppercase tracking-widest hover:bg-red-500/10 transition-colors border-t border-white/5">
+                                <LogOut size={14} className="shrink-0" /> Cerrar Sesión
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div class="flex items-center gap-4">
+                    <a href="/unirse" class="hidden md:inline-flex text-xs font-bold uppercase tracking-widest text-white/60 hover:text-white transition-colors">Unirse</a>
+                    <a href={`/api/auth/discord`} class="hidden md:inline-flex px-5 py-2 bg-pmc-accent/10 border border-pmc-accent text-pmc-accent text-xs font-bold uppercase tracking-widest hover:bg-pmc-accent hover:text-pmc-950 transition-all clip-path-slant">
+                        Acceso
+                    </a>
+                </div>
+            )}
+            
+            <button id="menu-toggle" class="md:hidden text-white p-2 hover:bg-white/10 rounded transition-colors" aria-label="Abrir menú">
+                <Menu className="w-6 h-6" id="icon-menu" />
+                <X className="w-6 h-6 hidden" id="icon-close" />
+            </button>
+        </div>
+
+    </nav>
+
+    {/* MOBILE MENU */}
+    <div id="mobile-menu" class="fixed inset-0 z-40 bg-pmc-950/95 backdrop-blur-xl flex flex-col justify-center items-center opacity-0 pointer-events-none transition-all duration-300 md:hidden">
+        {session && (
+            <div class="absolute top-24 flex flex-col items-center mb-8 animate-in fade-in slide-in-from-top-4">
+                <img src={userDisplay.avatar} class="w-16 h-16 rounded-full border-2 border-pmc-accent mb-3" />
+                <span class="text-white font-bold uppercase tracking-widest text-lg">{userDisplay.name}</span>
+                <span class={`text-xs font-mono uppercase ${userDisplay.specColor}`}>{userDisplay.rank} | {userDisplay.spec}</span>
+            </div>
+        )}
+
+        <ul class="flex flex-col items-center gap-6 font-mono text-lg font-bold uppercase tracking-widest">
+            {navLinks.map((link) => (
+                <li><a href={link.href} class={`mobile-link transition-colors ${currentPath === link.href ? 'text-pmc-accent' : 'text-white/60 hover:text-white'}`}>{link.name}</a></li>
+            ))}
+            
+            {session ? (
+                 <>
+                    <li class="w-12 h-px bg-white/10 my-2"></li>
+                    {operatorData && <li><a href="/perfil" class="text-white hover:text-pmc-accent mobile-link">Mi Ficha</a></li>}
+                    
+                    {operatorData && operatorData.isAdmin && (
+                        <li><a href="/admin" class="text-yellow-500 mobile-link">Panel Admin</a></li>
+                    )}
+
+                    <li><a href="/api/auth/logout" class="text-red-400 mobile-link">Cerrar Sesión</a></li>
+                 </>
+            ) : (
+                <li class="mt-4"><a href={`/api/auth/discord`} class="px-8 py-3 bg-pmc-accent text-pmc-950 font-black clip-path-slant mobile-link">Iniciar Sesión</a></li>
+            )}
+        </ul>
+    </div>
+</header>
+
+<style>
+    .clip-path-slant { clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+    .menu-open { opacity: 1 !important; pointer-events: auto !important; }
+</style>
+
+<script>
+    const logoLink = document.getElementById('logo-link');
+    logoLink?.addEventListener('click', (e) => {
+        if (window.location.pathname === '/' || window.location.pathname === '') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+
+    const menuToggle = document.getElementById('menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const iconMenu = document.getElementById('icon-menu');
+    const iconClose = document.getElementById('icon-close');
+    const mobileLinks = document.querySelectorAll('.mobile-link');
+
+    function toggleMenu() {
+        mobileMenu?.classList.toggle('menu-open');
+        iconMenu?.classList.toggle('hidden');
+        iconClose?.classList.toggle('hidden');
+        document.body.style.overflow = mobileMenu?.classList.contains('menu-open') ? 'hidden' : '';
+    }
+
+    menuToggle?.addEventListener('click', toggleMenu);
+    mobileLinks.forEach(link => link.addEventListener('click', toggleMenu));
+</script>
